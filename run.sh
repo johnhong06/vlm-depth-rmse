@@ -10,6 +10,7 @@
 # 규칙: /app/output 은 결과 전용(용량 100 GB). 압축 해제본·환경·공식 저장소·가중치 캐시는 WORK(쓰기 가능한 /app/data → /app/scratch → /tmp)에 둔다.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
+REPO=$PWD
 MODE=${1:-smoke}; shift || true
 case $MODE in env|smoke|depthlm|all|m3d_nyu) ;; dense) DM=${1:?"dense 다음에 모델 이름"}; shift;; *) echo "!!! MODE 는 env|smoke|depthlm|dense|all|m3d_nyu"; exit 1;; esac
 DATASETS=${*:-ibims1 nuscenes}
@@ -47,7 +48,18 @@ declare -A MNAME=([dav2]=DAv2-metric-L [unidepth]=UniDepthV2-L [metric3d]=Metric
 
 # --- 데이터: 데이터셋마다 팩 vdr_<ds>.tar.part_* (관리자가 /app/data 아래에 둔다) → WORK/bench ---
 case $MODE in env) ;; m3d_nyu) python3 h200/unpack.py vdr_nyu_official "$WORK/bench" || exit 1;;
-  *) for ds in $DATASETS; do python3 h200/unpack.py "vdr_$ds" "$WORK/bench" || exit 1; done;; esac
+  *) for ds in $DATASETS; do
+       python3 h200/unpack.py "vdr_$ds" "$WORK/bench" && continue
+       # 새 팩이 아직 없을 때: 9/23 팩(/app/data/HJ)에 iBims-1 RGB 의 바이트 동일본이 있다. DepthLM 은 RGB 만 쓰므로(GT 는 jsonl) 그것으로 먼저 돈다.
+       # 벤치 원본의 SHA256 목록(bench/ibims1_rgb.sha256)과 100/100 일치할 때만 쓴다. dense 모델은 GT 맵이 필요해 새 팩을 기다린다.
+       if [ "$ds" = ibims1 ] && [ "$MODE" = depthlm ] \
+          && python3 h200/unpack.py depthlm_distill_h200_app_data "$WORK/old" depthlm_distill_h200/eval/ibims1/rgb depthlm_distill_h200/models/DepthLM \
+          && mkdir -p "$WORK/bench/ibims1/ibims1_core_raw" && ln -sfn "$WORK/old/depthlm_distill_h200/eval/ibims1/rgb" "$WORK/bench/ibims1/ibims1_core_raw/rgb" \
+          && (cd "$WORK/bench/ibims1/ibims1_core_raw/rgb" && sha256sum -c --quiet "$REPO/bench/ibims1_rgb.sha256"); then
+         echo "[data] ibims1: 새 팩 대신 9/23 팩의 RGB 100 장 사용 (벤치 원본과 SHA256 100/100 일치)"; continue
+       fi
+       exit 1
+     done;; esac
 [ "$MODE" != depthlm ] && { bash prep/fetch_ext.sh || exit 1; }
 
 depthlm_weights() {  # 이미 풀린 폴더 → 없으면 옛 팩(depthlm-distill-h200, 2026-09-23 전달, /app/data 에 있음)에서 가중치만 푼다

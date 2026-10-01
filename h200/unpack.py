@@ -10,7 +10,8 @@ import sys
 import zipfile
 
 name, dest, members = sys.argv[1], sys.argv[2], sys.argv[3:]
-mark = os.path.join(dest, f".done_{name}")
+# 일부 경로만 푼 경우는 그 경로 목록별로 따로 기록한다 — 가중치만 푼 뒤 다른 경로가 필요할 때 '이미 풀림'으로 건너뛰지 않게
+mark = os.path.join(dest, f".done_{name}" + (f"_{hashlib.md5(' '.join(members).encode()).hexdigest()[:8]}" if members else ""))
 if os.path.exists(mark):
     sys.exit(print(f"[unpack] {name}: 이미 풀려 있음 ({dest})"))
 pat, parts, sums = re.compile(re.escape(name) + r"\.tar\.part_(\w+)$"), {}, {}

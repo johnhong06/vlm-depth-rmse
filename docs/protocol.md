@@ -30,6 +30,7 @@
   - 공식 `sample_points.py` 의 `sample_and_compute` 를 쓴다(이미지 i 마다 `RandomState(42 + i)`, valid 픽셀에서 비복원 균일 추출).
   - 전체 10,000 점을 446 장에 고르게 나누고, 이미지 순서는 정렬 순서로 고정한다.
   - cap 상한 80 m 는 ZoeDepth 의 DIODE Outdoor 평가 범위와 같다. 이 cap 으로 빠지는 유효 픽셀은 0.24 % 다.
+- iBims-1 RGB 는 새 팩 대신 9/23 팩의 사본을 쓸 수 있다 — 벤치 원본과 SHA256 100/100 일치(`bench/ibims1_rgb.sha256`)를 확인한 뒤에만 (NOTES D-15).
 - 오버샘플링은 없다. 5 개 세트 모두 이미지 중복 0, 이미지 안 좌표 중복 0 을 확인했다.
 - intrinsics 는 원본 보정 파일에서 읽는다.
   - iBims-1: `calib/*.txt`

@@ -16,7 +16,8 @@
 - [x] `run.sh` 모드: smoke / depthlm / dense <모델|all> / m3d_nyu
 - [x] 푸시 전 최종 점검 (정적·동적·팩 대조 + 독립 검토 에이전트) — 아래 실행 로그 2026-10-01 20:10
 - [x] 드라이브 `h200_trackA`: /app/data/HJ 에 새로 넣을 것만 (Track A 팩 6 개 + README_ADMIN, 6.03 GiB), 조각 8 개 SHA256 일치. DepthLM 가중치는 /app/data/HJ 의 9/23 팩을 쓴다
-- [ ] (사용자) 커밋·푸시 → H200 `bash run.sh env` (데이터 불필요) / 관리자에게 `h200_trackA` 전달
+- [x] (사용자) 커밋·푸시 → H200 `bash run.sh env` 제출 / 관리자에게 `h200_trackA` 전달 (서버 반영 대기)
+- [ ] (사용자) 추가 커밋·푸시 → H200 `bash run.sh depthlm ibims1` — 새 팩 없이 9/23 팩의 iBims-1 RGB 로 DepthLM 먼저 (D-15)
 - [ ] (사용자 확인) Metric3Dv2 '도메인 정보' — 공식 ViT 경로에는 도메인 설정이 없어 '미사용'으로 둠 (D-13)
 
 ### Track A — 검증 (본 실험 전에 통과)
@@ -136,6 +137,13 @@ DepthLM 공식 큐레이션: Argoverse2·ETH3D·NYU·SUN RGB-D·ScanNet++·Matte
 - intrinsics = 공식 devkit `intrinsics.txt` [886.81, 927.06, 512, 384] (fx ≠ fy). 깊이 = z-depth (F-5). 마스크 = `*_depth_mask.npy` == 1.
 - 4 개 공개 벤치 파일도 이미지 중복 0·이미지 안 좌표 중복 0 을 확인 (iBims-1 100×100, NYUv2 654×15–16, DDAD·nuScenes 1,000×10).
 - NYUv2 벤치 654 장 = 공식 NYU split(`splits.mat` testNdxs) 과 같은 집합 (SUN RGB-D 판 561×427). Metric3Dv2 RMS 재현은 표준(labeled.mat 640×480)으로 따로.
+
+### D-15 (2026-10-01) 새 팩이 서버에 오기 전에 DepthLM iBims-1 을 먼저 돌린다
+9/23 팩(/app/data/HJ)의 `depthlm_distill_h200/eval/ibims1/rgb` 100 장이 벤치 원본(ibims1_core_raw/rgb)과 바이트 단위로 같다 (로컬 md5 100/100).
+DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibims1` 이 새 팩을 못 찾으면 9/23 팩에서 그 RGB 와 가중치만 풀고,
+`bench/ibims1_rgb.sha256`(벤치 원본의 SHA256)과 100/100 일치할 때만 쓴다. 로컬에서 같은 구조의 작은 팩으로 데이터 단계와 2 점 질의를 확인 —
+원본 이미지로 돌린 결과와 같다. 결과는 /app/output 에 남아 이후 `all` 작업이 이어받는다(이미 답한 점은 건너뜀). dense 모델은 GT 맵이 필요해 새 팩을 기다린다.
+`h200/unpack.py` 는 일부 경로만 푼 경우를 경로 목록별로 기록하도록 고쳤다(가중치만 푼 뒤 다른 경로가 필요할 때 건너뛰지 않게).
 
 ## 확인이 필요한 발견
 
