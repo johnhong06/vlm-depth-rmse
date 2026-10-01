@@ -23,7 +23,7 @@ DepthLM 은 δ1 만 보고했다. 같은 조건에서 **RMSE / AbsRel / δ1** �
 7. 이미지 단위 bootstrap 95 % CI.
 8. z 공간 RMSE 가 주 결과, 유클리드 공간 RMSE 는 부록.
 9. DAv2-metric 모델 상한(실내 20 m, 실외 80 m) < 데이터셋 cap 이면 각주.
-10. 모델마다 실행 환경 분리 (`envs/<모델>.txt`; H200 = conda, 로컬 = `~/venv/<모델>`).
+10. 모델마다 실행 환경 분리 (`envs/<모델>.txt`; H200 = conda, 없으면 uv — 지금 서버는 uv (NOTES F-6), 로컬 = `~/venv/<모델>`).
 
 ## 작업 원칙
 

@@ -48,7 +48,7 @@ DepthLM 생성 설정은 공식 질문 문장, greedy decoding, 공식과 같은
 
 Metric3D의 공식 경로는 hub 데모(fx, 평균색 패딩, clamp 0–300)와 논문 벤치마크 코드((fx+fy)/2, 검은 패딩, clamp 없음) 두 가지다. Track A는 hub 데모를 따른다. fx와 (fx+fy)/2의 차이는 DIODE Outdoor에서 깊이 2.3%, 나머지 세트에서 0.1% 이하다. Depth Pro도 README 예시(CPU, fp32)와 CLI(GPU, fp16)가 다른데, GPU 실행 경로인 CLI를 따른다.
 
-**실행 환경 (규칙 10).** 모델마다 실행 환경을 따로 둔다. 패키지 목록은 `envs/<모델>.txt`이고 DepthLM은 transformers 4.51.1을 쓴다. H200에서는 `run.sh`가 모델별 conda 환경을 만든다. `bash run.sh env`로 데이터 없이 환경과 가중치를 점검할 수 있다.
+**실행 환경 (규칙 10).** 모델마다 실행 환경을 따로 둔다. 패키지 목록은 `envs/<모델>.txt`이고 DepthLM은 transformers 4.51.1을 쓴다. H200에서는 `run.sh`가 모델별 가상환경(Python 3.12)을 만든다. conda가 있으면 conda를, 없으면 uv를 쓰는데 지금 서버에는 conda가 없어 uv로 만든다. `bash run.sh env`로 데이터 없이 환경과 가중치를 점검할 수 있다.
 
 이유: 라이브러리 버전 충돌로 인한 조용한 오작동을 막는다.
 

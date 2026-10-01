@@ -19,7 +19,8 @@
 - [x] (사용자) 커밋·푸시 → H200 `bash run.sh env` 제출 / 관리자에게 `h200_trackA` 전달 (서버 반영 대기)
 - [ ] (사용자) 추가 커밋·푸시 → H200 `bash run.sh depthlm ibims1` — 새 팩 없이 9/23 팩의 iBims-1 RGB 로 DepthLM 먼저 (D-15)
 - [x] 문서: README 한국어(humanize-korean 윤문)·`docs/PROTOCOL.md` 8 절 (`docs/protocol.md` 대체, D-16) — 아래 실행 로그 21:12
-- [ ] (사용자) 문서 변경 커밋·푸시
+- [x] (사용자) 문서 변경 커밋·푸시 (c8a5945)
+- [x] H200 `bash run.sh env` 통과 (commit 174141d, 서버 11:14–11:30) — 모델 5 종 환경·공식 저장소·가중치·로딩, 로컬 사전 점검과 같은 값 (실행 로그, F-6)
 - [x] (사용자 확인) Metric3Dv2 '도메인 정보' — 사용자 확정(10-01): 공식 추론 설정 그대로, 표기는 '미사용', 따로 설명 없음 (D-13)
 
 ### Track A — 검증 (본 실험 전에 통과)
@@ -175,6 +176,8 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   또 공식 sparse 평가는 예측 맵을 canonical 크기로 되돌리지 않고 canonical 좌표로 바로 읽는다 — 맵 크기가 다르면 위치가 조금 어긋난다(확인 예정).
 - **F-5 DIODE 깊이 정의 = z-depth (확인됨)**: 논문은 "점들의 depth 의 robust mean" 이라고만 써서 판단 불가 → 실험: 바닥 평면이 지배적인 val outdoor
   42 장에서 아래쪽 영역을 두 가정(z / 유클리드)으로 3D 복원해 RANSAC 평면 인라이어(0.5 %)를 비교 — **42 장 모두 z 가정이 더 평평** (인라이어 차 중앙 +0.23).
+- **F-6 H200 이미지에 conda 없음 (2026-10-01 env 작업)**: PATH 에도 `/opt/conda/bin/conda` 에도 없어 run.sh 가 모델마다 uv 로 대체했다(`uv venv -p 3.12`).
+  모델별 환경 분리(규칙 10)는 그대로이고 Python 3.12·torch 2.7.1+cu128·flash-attn 휠(cp312)도 정상. 로그의 '!!! [env] conda 실패 → uv' 와 pip root 경고는 이 대체 과정의 메시지라 무시해도 된다.
 - **F-3** nuScenes `v1.0-test_meta.tgz`: 버킷의 `md5.checksum` 과 MD5 가 다르다(크기 70,803,751 B 는 일치, gzip 무결성 통과). 체크섬 목록이 옛것으로 보인다.
 
 ## 실행 로그
@@ -233,3 +236,12 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · 코드 확인: UniDepthV2 출력 상한 exp(10) ≈ 22 km(decoder `radius` clip), Metric3D ViT-L canonical 상한 200 m(config max_value), score.py 는 예측을 자르지 않음.
 - 2026-10-01 21:26 Metric3Dv2 도메인 정보 사용자 확정 반영 (D-13): README 모델 표 '미사용'·각주 삭제, PROTOCOL 1 절 표 '미사용'·설명 단락 삭제·8 절 대기 항목은 D-6 하나로,
   `eval/score.py` META 의 괄호 설명 삭제("no"). 측정 방식·코드 경로는 그대로 (py_compile 통과).
+- H200 `bash run.sh env` (commit 174141d, 서버 시각 11:14:49–11:30:09, 15 분, H200 NVL 140 GiB) — **통과**. 사용자가 콘솔 로그를 붙여 줌. 결과 zip 4 KB (로그와 같은 내용).
+  · 환경: 5 종 모두 uv 로 생성(F-6), torch 2.7.1+cu128, cv2 5.0.0 (로컬과 같은 버전). 공식 저장소 4 개 고정 커밋으로 받음.
+  · dense 4 종 KITTI 데모(375×1242, LiDAR 96,131 점) — 로컬 사전 점검과 표시 자릿수까지 같음:
+    DAv2 중앙 28.0 m·AbsRel 0.085·δ1 0.961 / UniDepthV2 28.9·0.109·0.980 / Metric3Dv2 26.4·0.042·0.997 / Depth Pro 28.8·0.079·0.993.
+  · DepthLM: 9/23 팩 가중치 16 조각 SHA256 통과 → /app/scratch/vdr_work/old. attention flash_attention_2(공식, 로컬은 sdpa), 정규화 이미지 1317×397, 8 점 파싱 8/8.
+    답 5 개는 로컬과 같고 3 개가 0.07–0.17 m(0.2–0.7 %) 다름 — attention 커널·GPU 가 달라 생기는 bf16 수치 차이로 본다.
+    8 점에서는 변환 전 답이 GT z 에 더 가깝다(δ1 8/8 vs 변환 후 6/8, AbsRel 0.116 vs 0.151). 다만 사진 1 장·8 점이고 KITTI 는 DepthLM 학습에 없으며,
+    먼 점(GT 44–47 m)을 37–39 m 로 낮게 답해 값을 줄이는 변환이 불리하게 보이는 면도 있다 → 판단 근거 아님. D-6 은 파일럿 1 만 점의 checks ③ 로 정한다.
+  · 다음 작업에서 '[env] … 생성' 이 다시 나오면 /app/scratch 가 작업마다 비워지는 것 → 매 작업 환경·가중치 준비에 10 여 분이 더 든다.
