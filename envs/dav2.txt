@@ -1,0 +1,11 @@
+# Depth Anything V2 metric 추론 환경. 공식 metric_depth/requirements.txt(matplotlib, opencv-python, open3d, torch, torchvision, 버전 고정 없음) 중
+# 추론(dpt.py infer_image)에 쓰는 것만. torch 2.7.1 의 torch.load(weights_only 기본값)로 공식 .pth 가 그대로 로드됨을 확인(조사 기록 NOTES D-13).
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+opencv-python-headless
+huggingface_hub
+numpy<2.3
+pandas
+pyarrow
+pillow

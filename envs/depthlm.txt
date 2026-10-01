@@ -1,0 +1,13 @@
+# DepthLM-12B 추론 환경. 공식 저장소 README: "conda create -n DepthLM python=3.12" + requirements.txt, "tested with transformers 4.51.1".
+# 추론에 쓰는 것만 남겼다(학습용 trl·peft·datasets·tensorboard 제외). torch 는 H200(sm_90)과 로컬 Blackwell(sm_120)을 둘 다 지원하는 cu128 빌드.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+transformers==4.51.1
+accelerate==1.6.0
+numpy<2.3
+pandas
+pyarrow
+pillow
+opencv-python-headless
+math_verify

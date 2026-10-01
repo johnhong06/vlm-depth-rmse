@@ -1,0 +1,17 @@
+# UniDepthV2 추론 환경. 공식 requirements.txt 는 하한만 있어(torch>=2.4, numpy>=2.0 ...) 추론 import 에 필요한 것만 고정한다.
+# xformers 는 공식 코드에서 선택(try/except → torch SDPA)이라 넣지 않는다 — 최신 xformers 가 torch 를 바꿔 깔지 않게.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+numpy>=2.0,<2.3
+einops
+timm
+wandb
+scipy
+opencv-python-headless
+matplotlib
+pillow
+huggingface_hub
+safetensors
+pandas
+pyarrow

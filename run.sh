@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# H200 진입점 (gpu-request 이슈의 실행 명령 한 줄, GPU 할당량 7). Track A = DepthLM-12B vs dense 모델 4종, 공통 점에서.
+#   bash run.sh env                           # 데이터 팩 없이: 모델 5종 환경·공식 저장소·가중치·로딩 + KITTI 데모 이미지 한 장 (공식 Metric3D 저장소에 포함)
+#   bash run.sh smoke [데이터셋...]          # 데이터까지: DepthLM 48 점 + dense 모델마다 3 장 (데이터셋 기본: ibims1 nuscenes)
+#   bash run.sh depthlm [데이터셋...]        # DepthLM-12B 를 공통 점 전부에 질의
+#   bash run.sh dense <모델|all> [데이터셋...]  # 모델 = dav2 | unidepth | metric3d | depthpro
+#   bash run.sh all [데이터셋...]            # depthlm + dense all 을 한 작업으로
+#   bash run.sh m3d_nyu                       # 검증: Metric3Dv2 ViT-L NYUv2 RMS 0.251 재현 (공식 654 장, 팩 vdr_nyu_official)
+# 데이터셋: ibims1 nyuv2 ddad nuscenes diode_outdoor. 끝나면 지금까지의 원자료 전체로 표·δ1 검증표를 찍고 zip 으로 묶는다.
+# 규칙: /app/output 은 결과 전용(용량 100 GB). 압축 해제본·환경·공식 저장소·가중치 캐시는 WORK(쓰기 가능한 /app/data → /app/scratch → /tmp)에 둔다.
+set -uo pipefail
+cd "$(dirname "$0")" || exit 1
+MODE=${1:-smoke}; shift || true
+case $MODE in env|smoke|depthlm|all|m3d_nyu) ;; dense) DM=${1:?"dense 다음에 모델 이름"}; shift;; *) echo "!!! MODE 는 env|smoke|depthlm|dense|all|m3d_nyu"; exit 1;; esac
+DATASETS=${*:-ibims1 nuscenes}
+OUT=$([ -d /app/output ] && echo /app/output/vdr || echo "$PWD/results")
+A=$OUT/track_a; [ "$MODE" = smoke ] && A=$OUT/smoke_a   # 스모크는 따로 — 본 실행이 이어받아 점이 겹치지 않게
+mkdir -p "$A" "$OUT/tables"
+w() { mkdir -p "$1" 2>/dev/null && touch "$1/.w" 2>/dev/null && rm -f "$1/.w"; }
+WORK=${WORK:-$(w /app/data/vdr_work && echo /app/data/vdr_work || { w /app/scratch/vdr_work && echo /app/scratch/vdr_work || echo /tmp/vdr_work; })}
+mkdir -p "$WORK"; export HF_HOME=$WORK/hf TORCH_HOME=$WORK/torch PIP_CACHE_DIR=$WORK/pip VDR_EXT=$WORK/ext PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+TAG=${MODE}_$(date +%m%d_%H%M); LOG=$OUT/run_$TAG.log; exec > >(tee -a "$LOG") 2>&1; TEE=$!
+trap 'exec >&- 2>&-; wait $TEE' EXIT   # 끝날 때 tee 가 마지막 줄까지 쓰고 나가게
+echo "[setup] $(date '+%F %T') MODE=$MODE ${DM:-} DATASETS=$DATASETS OUT=$OUT WORK=$WORK commit=$(git rev-parse --short HEAD 2>/dev/null)"
+
+# --- 모델마다 따로 만드는 환경 (규칙 10). conda-forge python 3.12 (defaults 채널은 비대화형에서 약관 동의를 요구할 수 있다), 실패하면 uv ---
+CONDA=$(command -v conda || echo /opt/conda/bin/conda)
+FA=https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.7cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+mkenv() {  # 이름 → $WORK/envs/<이름>/bin/python. 설치가 끝까지 된 환경에만 .ok 를 남기고, 없으면 처음부터 다시 만든다
+  local E=$WORK/envs/$1
+  if [ ! -f "$E/.ok" ]; then {   # 진행 메시지는 전부 stderr — stdout 은 파이썬 경로 하나만
+    echo "[env] $1 생성"; rm -rf "$E"
+    "$CONDA" create -y -q -p "$E" --override-channels -c conda-forge python=3.12 >/dev/null \
+      || { echo "!!! [env] conda 실패 → uv"; pip install -q uv && uv venv -q -p 3.12 "$E" && uv pip install -q -p "$E/bin/python" pip; } || return 1
+    "$E/bin/pip" install -q -r "envs/$1.txt" || { echo "!!! [env] $1 패키지 설치 실패"; return 1; }
+    # mmcv-lite·mmengine(metric3d)은 GUI 판 opencv-python 을 끌어와 headless 를 덮어쓴다 — libGL 없는 이미지에서 import cv2 가 깨지므로 headless 로 되돌린다
+    if "$E/bin/pip" show -q opencv-python >/dev/null 2>&1; then
+      "$E/bin/pip" uninstall -y -q opencv-python && "$E/bin/pip" install -q --no-deps --force-reinstall opencv-python-headless || return 1
+    fi
+    [ "$1" = depthlm ] && { "$E/bin/pip" install -q "$FA" || echo "!!! [env] flash-attn 설치 실패 → sdpa (둘 다 exact attention, 공식은 flash_attention_2)"; }
+    touch "$E/.ok"
+  } >&2; fi
+  "$E/bin/python" -c "import torch, cv2; p = torch.cuda.get_device_properties(0); print(f'[env] $1: torch {torch.__version__} cv2 {cv2.__version__} | {p.name} {p.total_memory / 2**30:.0f} GiB')" >&2 || return 1
+  echo "$E/bin/python"
+}
+declare -A MNAME=([dav2]=DAv2-metric-L [unidepth]=UniDepthV2-L [metric3d]=Metric3Dv2-L [depthpro]=DepthPro)
+
+# --- 데이터: 데이터셋마다 팩 vdr_<ds>.tar.part_* (관리자가 /app/data 아래에 둔다) → WORK/bench ---
+case $MODE in env) ;; m3d_nyu) python3 h200/unpack.py vdr_nyu_official "$WORK/bench" || exit 1;;
+  *) for ds in $DATASETS; do python3 h200/unpack.py "vdr_$ds" "$WORK/bench" || exit 1; done;; esac
+[ "$MODE" != depthlm ] && { bash prep/fetch_ext.sh || exit 1; }
+
+depthlm_weights() {  # 이미 풀린 폴더 → 없으면 옛 팩(depthlm-distill-h200, 2026-09-23 전달, /app/data 에 있음)에서 가중치만 푼다
+  local M
+  M=$(find -L /app/data "$WORK" -maxdepth 5 -name model.safetensors.index.json -path "*/models/DepthLM/*" -printf "%h\n" 2>/dev/null | head -1)   # 9/23 팩 구조
+  if [ -z "$M" ]; then
+    python3 h200/unpack.py depthlm_distill_h200_app_data "$WORK/old" depthlm_distill_h200/models/DepthLM >&2 || return 1
+    M=$WORK/old/depthlm_distill_h200/models/DepthLM
+  fi
+  echo "$M"
+}
+run_depthlm() {  # $1 = 점 수 제한 (0 = 전부)
+  local PY M NPROC=${NPROC:-2}
+  PY=$(mkenv depthlm) || return 1
+  M=$(depthlm_weights) || return 1
+  [ "$1" -gt 0 ] && NPROC=1
+  echo "[depthlm] 가중치 $M ($(ls "$M"/*.safetensors | wc -l) 조각), 프로세스 $NPROC"
+  for ds in $DATASETS; do
+    for i in $(seq 0 $((NPROC - 1))); do   # 한 GPU 에 NPROC 개 (각 가중치 25 GB + 비전 eager attention 최대 약 13 GB)
+      $PY eval/depthlm_sparse.py --dataset "$ds" --data_root "$WORK/bench" --model "$M" --out "$A" --shard "$i" --nshard "$NPROC" --limit "$1" > "$A/log_depthlm_${ds}_$i.txt" 2>&1 &
+    done
+    wait
+    grep -hE "^\[|vs gt_z" "$A"/log_depthlm_${ds}_*.txt | tail -n $((3 * NPROC))
+    grep -l "Traceback" "$A"/log_depthlm_${ds}_*.txt 2>/dev/null | while read -r f; do echo "!!! 오류: $f"; tail -5 "$f"; done
+  done
+}
+run_dense() {  # $1 = 모델 키, $2 = 이미지 수 제한 (0 = 전부)
+  local PY; PY=$(mkenv "$1") || return 1
+  (cd eval && $PY dense_sparse.py --model "${MNAME[$1]}" --datasets $DATASETS --data_root "$WORK/bench" --out "$A" --limit "$2" 2>&1 \
+     | tee "$A/log_dense_$1.txt" | grep -E "^\[|Traceback|Error")
+}
+
+case $MODE in
+  env)
+    for m in dav2 unidepth metric3d depthpro; do PY=$(mkenv $m) && (cd eval && $PY env_check.py --model "${MNAME[$m]}" 2>&1 | grep -E "^\[|Traceback|Error"); done
+    PY=$(mkenv depthlm) && M=$(depthlm_weights) && (cd eval && $PY env_check.py --model DepthLM-12B --weights "$M" 2>&1 | grep -E "^\[|^  \(|Traceback|Error");;
+  smoke) run_depthlm 48; for m in dav2 unidepth metric3d depthpro; do run_dense $m 3; done;;
+  depthlm) run_depthlm 0;;
+  all) run_depthlm 0; for m in dav2 unidepth metric3d depthpro; do run_dense $m 0; done;;
+  dense) for m in $([ "$DM" = all ] && echo dav2 unidepth metric3d depthpro || echo "$DM"); do run_dense "$m" 0; done;;
+  m3d_nyu) PY=$(mkenv metric3d) && (cd eval && $PY m3d_nyu.py "$WORK/bench/nyu_official" 2>&1 | tee "$A/log_m3d_nyu.txt" | grep -E "^\[|Traceback|Error");;
+esac
+
+# --- 지금까지의 원자료 전체로 표 + δ1 검증표 (모든 모델이 있는 데이터셋만 공통 집합으로) ---
+PY=$WORK/envs/depthlm/bin/python; [ -x "$PY" ] || PY=$(ls "$WORK"/envs/*/bin/python 2>/dev/null | head -1)
+MODELS=$($PY -c "import glob, pandas as pd; print(' '.join(sorted({m for f in glob.glob('$A/*.parquet') if '/densestat_' not in f for m in pd.read_parquet(f, columns=['model']).model.unique()})))")
+FILES=$(ls "$A"/depthlm_*.parquet "$A"/dense_*.parquet 2>/dev/null)
+if [ -n "$MODELS" ]; then
+  (cd eval && $PY score.py $FILES --models $MODELS --out "$OUT/tables/${MODE}_track_a" --B 1000 && $PY checks.py $FILES $(ls "$A"/densestat_*.parquet 2>/dev/null) | tee "$OUT/tables/${MODE}_checks.md")
+fi
+cd "$OUT" && $PY -m zipfile -c "vdr_$TAG.zip" "$(basename "$A")" tables "run_$TAG.log" && echo "[done] $(date '+%T') 결과: $OUT/vdr_$TAG.zip ($(du -h "vdr_$TAG.zip" | cut -f1)) — 관리자에게 이 zip 을 요청"

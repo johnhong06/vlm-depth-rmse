@@ -1,0 +1,13 @@
+# Depth Pro 추론 환경. 공식 pyproject 는 numpy<2 를 고정하지만 코드는 numpy 2 에서도 돈다(조사 확인) — 다른 환경과 같은 numpy 로.
+# 패키지 설치(pip install -e) 대신 src 를 sys.path 에 넣는다(의존성 강제 변경 방지). timm 은 dynamic_img_size 때문에 ≥ 0.9.6.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+timm==1.0.30
+pillow_heif
+numpy<2.3
+opencv-python-headless
+pillow
+pandas
+pyarrow
+huggingface_hub
