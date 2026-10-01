@@ -1,6 +1,6 @@
 # vlm-depth-rmse — 프로젝트 규칙
 
-상위 `Jihyuck/CLAUDE.md` 의 공통 규칙이 그대로 적용된다. 진행 상황·결정 근거는 `NOTES.md`, 실제 적용한 평가 설정 전부는 `docs/protocol.md`.
+상위 `Jihyuck/CLAUDE.md` 의 공통 규칙이 그대로 적용된다. 진행 상황·결정 근거는 `NOTES.md`, 실제 적용한 평가 설정 전부는 `docs/PROTOCOL.md`.
 **Track A 를 끝낸 뒤 Track B** (사용자 지시, NOTES D-11). 지금 규칙은 Track A 용이다.
 
 ## Track A — DepthLM 의 RMSE 재평가 (zero-shot)

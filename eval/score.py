@@ -18,7 +18,7 @@ META = {
     "DepthLM-12B": ("yes", "no"),
     "DAv2-metric-L": ("no", "yes (indoor Hypersim / outdoor VKITTI model)"),
     "UniDepthV2-L": ("no", "no"),
-    "Metric3Dv2-L": ("yes", "no (ViT: one 616×1064 setting for all domains, NOTES D-13)"),
+    "Metric3Dv2-L": ("yes", "no"),
     "DepthPro": ("no", "no"),
 }
 TRAINED = {("Metric3Dv2-L", "ddad"): "trained on DDAD", ("DepthLM-12B", "nuscenes"): "trained on nuScenes (other scenes)"}

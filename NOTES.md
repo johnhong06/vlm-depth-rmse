@@ -18,7 +18,9 @@
 - [x] 드라이브 `h200_trackA`: /app/data/HJ 에 새로 넣을 것만 (Track A 팩 6 개 + README_ADMIN, 6.03 GiB), 조각 8 개 SHA256 일치. DepthLM 가중치는 /app/data/HJ 의 9/23 팩을 쓴다
 - [x] (사용자) 커밋·푸시 → H200 `bash run.sh env` 제출 / 관리자에게 `h200_trackA` 전달 (서버 반영 대기)
 - [ ] (사용자) 추가 커밋·푸시 → H200 `bash run.sh depthlm ibims1` — 새 팩 없이 9/23 팩의 iBims-1 RGB 로 DepthLM 먼저 (D-15)
-- [ ] (사용자 확인) Metric3Dv2 '도메인 정보' — 공식 ViT 경로에는 도메인 설정이 없어 '미사용'으로 둠 (D-13)
+- [x] 문서: README 한국어(humanize-korean 윤문)·`docs/PROTOCOL.md` 8 절 (`docs/protocol.md` 대체, D-16) — 아래 실행 로그 21:12
+- [ ] (사용자) 문서 변경 커밋·푸시
+- [x] (사용자 확인) Metric3Dv2 '도메인 정보' — 사용자 확정(10-01): 공식 추론 설정 그대로, 표기는 '미사용', 따로 설명 없음 (D-13)
 
 ### Track A — 검증 (본 실험 전에 통과)
 - [ ] H200 `bash run.sh smoke`
@@ -124,6 +126,7 @@ DepthLM 공식 큐레이션: Argoverse2·ETH3D·NYU·SUN RGB-D·ScanNet++·Matte
 - **설계표와 다른 점 (보고 대상)**: 사용자 표는 Metric3Dv2 를 "도메인 정보 사용 / 실내·실외 crop size 고정" 으로 적었으나, **ViT 모델의 공식 경로에는 도메인 구분이 없다** —
   입력 616×1064·canonical focal 1000·깊이 범위 하나뿐이고, 논문도 "모든 zero-shot 평가에 같은 체크포인트". 도메인별 crop size(NYU 480×1216, KITTI 512×1088 등)는 v1 ConvNeXt 설정이다.
   공식 경로대로 돌리고 표에는 "미사용"으로 적는다 — 사용자가 다른 처리를 원하면 바꾼다.
+  → **사용자 확정 (10-01)**: "공식 추론 설정이니까 따로 설명 없이 그냥 사용" — 공식 경로 그대로, README·PROTOCOL·결과 표 모두 '미사용', 각주·설명 없음.
 - Metric3D 공식 경로들 사이의 작은 차이: hub 데모(fx, 평균색 패딩, clamp 0–300) / 논문 벤치마크 코드((fx+fy)/2, 검은 패딩, NYU 는 테두리 6 px 검게, clamp 없음).
   Track A 는 hub 데모를 따른다. (fx+fy)/2 와 fx 의 차이는 DIODE(fx 886.81, fy 927.06)에서 깊이 2.3 %, 나머지는 0.1 % 이하.
 - Depth Pro 는 README 예시(CPU·fp32)와 CLI(GPU·fp16)가 다르다 — GPU 실행 경로인 CLI 를 따른다. 체크포인트 자체가 fp16.
@@ -144,6 +147,13 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 `bench/ibims1_rgb.sha256`(벤치 원본의 SHA256)과 100/100 일치할 때만 쓴다. 로컬에서 같은 구조의 작은 팩으로 데이터 단계와 2 점 질의를 확인 —
 원본 이미지로 돌린 결과와 같다. 결과는 /app/output 에 남아 이후 `all` 작업이 이어받는다(이미 답한 점은 건너뜀). dense 모델은 GT 맵이 필요해 새 팩을 기다린다.
 `h200/unpack.py` 는 일부 경로만 푼 경우를 경로 목록별로 기록하도록 고쳤다(가중치만 푼 뒤 다른 경로가 필요할 때 건너뛰지 않게).
+
+### D-16 (2026-10-01) README·PROTOCOL 문서 기준 (사용자 지시: "README 와 세부 프로토콜 문서 작성", README 는 한국어 + AI 티 없는 문체)
+- README = 처음 보는 사람용 한 화면 요약(사용자 지정 순서·결과 표 템플릿·체크리스트). 실행 명령·폴더 구조는 넣지 않았다(CLAUDE.md 에 있음).
+- 설계와 '이유'는 Track A 설계 프롬프트에서만 가져오고, 설정값은 실제 적용한 값(코드·벤치 파일·결정 기록)으로 채운다 — 설계가 "실제 적용한 모든 설정값을 프로토콜 문서에 기록"을 요구하므로. 정하지 않은 값은 TBD (현재 6 절에 해당 없음).
+- Metric3Dv2 도메인 정보: 처음엔 README 에 설계값 '사용' + 각주(확인 중)를 달았으나, 사용자 확정에 따라 README·PROTOCOL·결과 표 모두 '미사용'으로 각주·설명 없이 적는다 (D-13).
+- 결과 표의 DAv2 상한 표시는 해당 칸(iBims-1·DDAD 의 DAv2)에 ‡ 로 단다 — 사용자 템플릿의 "데이터셋 표시" 각주를 칸 표시로 해석.
+- 파일 이름은 사용자 지정대로 `docs/PROTOCOL.md` (git mv). 참조는 CLAUDE.md 한 곳.
 
 ## 확인이 필요한 발견
 
@@ -215,3 +225,11 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · 문서: 프로토콜의 z 변환 검증 기준(원답/GT 가 광선 계수와 함께 커지고 변환값/GT 는 평평), DepthLM 배치·max_new_tokens, DIODE 비등방(fy′ ≈ 784), 예상 제외 점 수.
   · 검토가 확인한 것(버그 아님): DepthLM 전처리가 공식 dataset_inference 와 632 점에서 화소 단위 동일(화살표 불가 25 점도 같음), 좌표 규약·z/유클리드 수식,
     score 의 pooled·per-image·bootstrap(이미지 단위, 모델 간 짝지음, 도메인 층화), 팩 내용, unpack.py, dense 어댑터 4 종, bash 출력 경로.
+- 2026-10-01 21:12 문서 정리 (D-16): README 한국어로 새로 씀 → humanize-korean light 경로(변경률 0.6 %, 게이트 수렴, 문장 5 곳). `docs/protocol.md` → `docs/PROTOCOL.md` 8 절로 다시 씀.
+  문서에 넣기 전 확인한 것:
+  · 벤치 4 종의 점 좌표가 공식 `sample_points.py` seed 42(`RandomState(42 + i)`)로 그대로 재생성됨 — iBims-1 100/100, NYUv2 654/654, DDAD 1,000/1,000, nuScenes 1,000/1,000 장 일치 → 6 절 seed 칸.
+  · 논문 참고 수치 19 개를 원문 표와 대조, 모두 일치: DepthLM v2 표 1 "Ours - Pixtral (12b)"(데이터셋마다 무작위 8,192 샘플), DepthVLM v3 표 1 "DepthLM-12B"·표 2(sparse),
+    Metric3D v2 v4 표 1 NYUv2 "Ours ViT-L CSTM_label ZS" 0.251 / 0.063 / 0.975. DIODE 는 DepthLM·DepthVLM 표에 없음. DepthLM 표 2 의 pure vision 수치는 UniDepthV2·Depth Pro 논문에서 옮긴 값이라 기준으로 쓰지 않음.
+  · 코드 확인: UniDepthV2 출력 상한 exp(10) ≈ 22 km(decoder `radius` clip), Metric3D ViT-L canonical 상한 200 m(config max_value), score.py 는 예측을 자르지 않음.
+- 2026-10-01 21:26 Metric3Dv2 도메인 정보 사용자 확정 반영 (D-13): README 모델 표 '미사용'·각주 삭제, PROTOCOL 1 절 표 '미사용'·설명 단락 삭제·8 절 대기 항목은 D-6 하나로,
+  `eval/score.py` META 의 괄호 설명 삭제("no"). 측정 방식·코드 경로는 그대로 (py_compile 통과).
