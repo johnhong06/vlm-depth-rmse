@@ -71,18 +71,31 @@ depthlm_weights() {  # 이미 풀린 폴더 → 없으면 옛 팩(depthlm-distil
   fi
   echo "$M"
 }
+alive() { local p; for p in "$@"; do kill -0 "$p" 2>/dev/null && return 0; done; return 1; }   # 하나라도 살아 있으면 참
 run_depthlm() {  # $1 = 점 수 제한 (0 = 전부)
-  local PY M NPROC=${NPROC:-2}
+  local PY M NPROC=${NPROC:-2} EVERY=${PROGRESS_SEC:-600} pids t i l
   PY=$(mkenv depthlm) || return 1
   M=$(depthlm_weights) || return 1
   [ "$1" -gt 0 ] && NPROC=1
-  echo "[depthlm] 가중치 $M ($(ls "$M"/*.safetensors | wc -l) 조각), 프로세스 $NPROC"
+  echo "[depthlm] $(date '+%T') 가중치 $M ($(ls "$M"/*.safetensors | wc -l) 조각), 프로세스 $NPROC, CPU $(nproc)"
   for ds in $DATASETS; do
+    pids=()
     for i in $(seq 0 $((NPROC - 1))); do   # 한 GPU 에 NPROC 개 (각 가중치 25 GB + 비전 eager attention 최대 약 13 GB)
       $PY eval/depthlm_sparse.py --dataset "$ds" --data_root "$WORK/bench" --model "$M" --out "$A" --shard "$i" --nshard "$NPROC" --limit "$1" > "$A/log_depthlm_${ds}_$i.txt" 2>&1 &
+      pids+=($!)
+    done
+    t=0
+    while alive "${pids[@]}"; do   # 추론 중에는 콘솔이 조용하므로 EVERY 초마다 프로세스별 마지막 진행 줄과 GPU 상태를 찍는다
+      sleep 10; t=$((t + 10))
+      [ $((t % EVERY)) -ne 0 ] && continue
+      for i in $(seq 0 $((NPROC - 1))); do
+        l=$(grep -E "질의, |^\[" "$A/log_depthlm_${ds}_$i.txt" | tail -n 1)
+        echo "[진행 $(date '+%T')] $ds $i: ${l:-(첫 진행 줄 전) $(tail -c 150 "$A/log_depthlm_${ds}_$i.txt" | tr '\r\n' '  ')}"
+      done
+      nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader 2>/dev/null | sed "s/^/[진행] GPU 사용률, 메모리: /"
     done
     wait
-    grep -hE "^\[|vs gt_z" "$A"/log_depthlm_${ds}_*.txt | tail -n $((3 * NPROC))
+    grep -hE "^\[|vs gt_z" "$A"/log_depthlm_${ds}_*.txt | tail -n $((4 * NPROC))   # 프로세스마다 시작·요약·δ1 두 줄
     grep -l "Traceback" "$A"/log_depthlm_${ds}_*.txt 2>/dev/null | while read -r f; do echo "!!! 오류: $f"; tail -5 "$f"; done
   done
 }
