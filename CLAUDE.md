@@ -1,7 +1,7 @@
 # vlm-depth-rmse — 프로젝트 규칙
 
 상위 `Jihyuck/CLAUDE.md` 의 공통 규칙이 그대로 적용된다. 진행 상황·결정 근거는 `NOTES.md`, 실제 적용한 평가 설정 전부는 `docs/PROTOCOL.md`.
-**Track A 를 끝낸 뒤 Track B** (사용자 지시, NOTES D-11). 지금 규칙은 Track A 용이다.
+**Track A 를 끝낸 뒤 Track B** (사용자 지시, NOTES D-11). Track B 는 같은 규칙에 dense 평가를 더한 것 (NOTES D-19, PROTOCOL 9 절).
 
 ## Track A — DepthLM 의 RMSE 재평가 (zero-shot)
 
@@ -43,4 +43,6 @@ bash run.sh depthlm ibims1 nuscenes                # DepthLM-12B 파일럿
 bash run.sh dense all ibims1 nuscenes              # dense 모델 4종 파일럿
 bash run.sh all ibims1 nuscenes                    # DepthLM + dense 4종을 한 작업으로
 bash run.sh m3d_nyu                                # 검증: Metric3Dv2 NYUv2 RMS 0.251
+bash run.sh trackb ibims1 nuscenes LIMIT=3         # Track B 스모크 (DepthVLM-4B + dense 4 종, valid GT 전체 픽셀, 이미지별 통계)
+bash run.sh trackb ibims1 nyuv2 ddad nuscenes diode_outdoor   # Track B 전체 (docs/PROTOCOL.md 9 절)
 ```

@@ -1,0 +1,15 @@
+# DepthVLM-4B 추론 환경 (Track B). 공식 requirements.txt 는 하한만 있다(transformers>=4.49, qwen-vl-utils>=0.0.10). 공식 model/ 코드가 transformers 5 계열 API 를 쓰므로
+# 체크포인트 config 의 transformers_version(5.2.0)으로 고정한다. 추론에 쓰는 것만 (학습용 trl·peft·datasets·bitsandbytes 제외). torch 는 depthlm 환경과 같은 cu128 빌드.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+transformers==5.2.0
+accelerate
+qwen-vl-utils==0.0.14
+einops
+numpy<2.3
+pandas
+pyarrow
+pillow
+scipy
+opencv-python-headless

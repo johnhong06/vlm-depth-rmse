@@ -22,8 +22,10 @@ META = {
     "UniDepthV2-L": ("no", "no"),
     "Metric3Dv2-L": ("yes", "no"),
     "DepthPro": ("no", "no"),
+    "DepthVLM-4B": ("yes", "no"),   # Track B: 입력을 GT fx 기준 canonical 크기(f=1000)로 리사이즈 (D-19)
 }
-TRAINED = {("Metric3Dv2-L", "ddad"): "trained on DDAD", ("DepthLM-12B", "nuscenes"): "trained on nuScenes (other scenes)"}
+TRAINED = {("Metric3Dv2-L", "ddad"): "trained on DDAD", ("DepthLM-12B", "nuscenes"): "trained on nuScenes (other scenes)",
+           ("DepthVLM-4B", "ddad"): "trained on DDAD (other scenes)", ("DepthVLM-4B", "nuscenes"): "trained on nuScenes (other scenes)"}
 CEILING = {("DAv2-metric-L", "ibims1"): "model max 20 m < cap 25 m", ("DAv2-metric-L", "ddad"): "model max 80 m < cap 120 m"}
 NAMES = ["rmse", "absrel", "d1", "rmse_euc"]
 Z_SETS = {"nuscenes", "ddad"}  # DepthLM_Official curate_nuscenes_*.py (points_cam[2])·curate_ddad.py (dgp 깊이맵) = z 라벨. 나머지는 유클리드 라벨이거나 공식 정의 없음

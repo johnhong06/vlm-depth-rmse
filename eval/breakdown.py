@@ -51,7 +51,7 @@ def main():
     a = ap.parse_args()
     d = pd.concat([pd.read_parquet(f, columns=["dataset", "image_id", "u", "v", "gt_z", "pred", "pred_raw", "model"]) for f in a.files])
     d = depthlm_answers(d[d.model.isin(a.models)], a.depthlm)
-    rng, rows = np.random.default_rng(0), []
+    rows = []
     for ds in [k for k in BENCH if k in set(d.dataset)]:
         x = d[d.dataset == ds]
         if x.model.nunique() < len(a.models):

@@ -38,23 +38,32 @@ def near(contour, u, v):
     return dist[v, u] <= R
 
 
-root = os.path.expanduser(sys.argv[1])
-for ds in ["ibims1", "nyuv2", "diode_outdoor"]:
-    recs, _ = load_bench(ds)
-    rows = []
-    for r in recs:
-        u, v = np.array(r["pixel_coords"]).T
-        ratio = near(ratio_contour(gt_map(r, root, ds)), u, v)
-        if ds == "ibims1":
-            ep = os.path.join(root, r["image"].replace("/rgb/", "/edges/"))
-            b = near(np.array(Image.open(ep)) > 0, u, v) if os.path.exists(ep) else np.full(len(u), None)
-        else:
-            b = ratio
-        rows += [dict(image_id=r["image"], u=int(a), v=int(c), boundary=None if x is None else bool(x), boundary_ratio=bool(y)) for a, c, x, y in zip(u, v, b, ratio)]
-    t = pd.DataFrame(rows).astype({"boundary": "boolean"})
-    t.to_parquet(os.path.join(ROOT, "bench", f"boundary_{ds}.parquet"), index=False)
-    msg = f"{ds}: 점 {len(t)}, 경계 {t.boundary.mean():.1%}"
+def contour_map(ds, r, root, gt):
+    """경계 정의(D-18) 의 경계선 지도. iBims-1 = 공식 경계 지도(없으면 None), NYUv2·DIODE = 이웃 GT 깊이 비. Track B(eval/dense_full.py)도 같은 정의를 쓴다."""
     if ds == "ibims1":
-        k = t[t.boundary.notna()]; agree = (k.boundary == k.boundary_ratio).mean()
-        msg += f" (공식 지도 있는 점 {len(k)}) | 공식 경계 대비 비율 방식: 경계 {t.boundary_ratio.mean():.1%}, 일치 {agree:.1%}, 공식 경계 점 중 비율 방식도 경계 {k[k.boundary.astype(bool)].boundary_ratio.mean():.1%}"
-    print(msg, flush=True)
+        ep = os.path.join(root, r["image"].replace("/rgb/", "/edges/"))
+        return np.array(Image.open(ep)) > 0 if os.path.exists(ep) else None
+    return ratio_contour(gt)
+
+
+if __name__ == "__main__":
+  root = os.path.expanduser(sys.argv[1])
+  for ds in ["ibims1", "nyuv2", "diode_outdoor"]:
+      recs, _ = load_bench(ds)
+      rows = []
+      for r in recs:
+          u, v = np.array(r["pixel_coords"]).T
+          ratio = near(ratio_contour(gt_map(r, root, ds)), u, v)
+          if ds == "ibims1":
+              ep = os.path.join(root, r["image"].replace("/rgb/", "/edges/"))
+              b = near(np.array(Image.open(ep)) > 0, u, v) if os.path.exists(ep) else np.full(len(u), None)
+          else:
+              b = ratio
+          rows += [dict(image_id=r["image"], u=int(a), v=int(c), boundary=None if x is None else bool(x), boundary_ratio=bool(y)) for a, c, x, y in zip(u, v, b, ratio)]
+      t = pd.DataFrame(rows).astype({"boundary": "boolean"})
+      t.to_parquet(os.path.join(ROOT, "bench", f"boundary_{ds}.parquet"), index=False)
+      msg = f"{ds}: 점 {len(t)}, 경계 {t.boundary.mean():.1%}"
+      if ds == "ibims1":
+          k = t[t.boundary.notna()]; agree = (k.boundary == k.boundary_ratio).mean()
+          msg += f" (공식 지도 있는 점 {len(k)}) | 공식 경계 대비 비율 방식: 경계 {t.boundary_ratio.mean():.1%}, 일치 {agree:.1%}, 공식 경계 점 중 비율 방식도 경계 {k[k.boundary.astype(bool)].boundary_ratio.mean():.1%}"
+      print(msg, flush=True)

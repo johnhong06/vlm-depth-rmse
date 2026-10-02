@@ -262,3 +262,22 @@ DepthLM 파일에는 열이 두 개 더 있다. `note`는 점이 빠진 이유(`
 - 모든 지표는 원자료 parquet에서만 계산한다(7절).
 
 보고한 뒤 확인을 기다리는 항목은 DepthLM 원답의 깊이 정의 하나다. NuScenes·DDAD는 학습 라벨이 z-depth라서, 원답이 어느 정의인지 파일럿에서 확인한다 (5절, NOTES D-6).
+
+## 9. Track B — dense 평가 (2026-10-03 추가, NOTES D-19)
+
+깊이 맵 전체를 내는 모델끼리 valid GT 픽셀 전체로 비교한다. DepthLM 은 dense 예측이 불가능해 빠진다.
+
+이유: Track A 는 DepthLM 때문에 공통 점에서만 비교했다. 맵 전체를 내는 모델끼리는 이미지 전체에서 비교해야 각 모델의 실제 성능이 드러난다.
+
+- **모델**: DepthVLM-4B + Track A 와 같은 pure vision 4 종. 학습 데이터 겹침은 2 절에 DepthVLM 을 더한 것 — DepthVLM 은 DDAD·NuScenes 의 학습 분할로 학습했다(논문 3 절·부록 A·표 9). 평가 분할과 장면은 다르지만 † 로 표시한다. iBims-1·NYUv2·DIODE 는 zero-shot.
+- **DepthVLM 추론** (`eval/dense_full.py`, 공식 `eval/eval.py` 경로): 사진을 canonical 크기(가로·세로 × 1000 / fx, 공식 큐레이션 식)로 bilinear 리사이즈 → 공식 프롬프트·채팅 틀 → `process_vision_info` → 프로세서 → forward 한 번의 `depth_pred`. bf16, text attention flash_attention_2 (없으면 sdpa). 출력은 z 이고 항상 > 0. 가중치 HF `JonnyYu828/DepthVLM-4B` @2b2d02f, 코드 `third_party/DepthVLM`, 환경 `envs/depthvlm.txt` (transformers 5.2.0 = 체크포인트에 적힌 버전).
+  - GT intrinsics: 사용 (입력 크기를 GT fx 로 정한다). 도메인 정보: 미사용.
+- **평가 픽셀**: 데이터셋마다 Track A 와 같은 valid mask·cap 을 통과한 GT 픽셀 전부. 예측 맵은 GT 원본 해상도로 bilinear (규칙 2). 모든 모델이 같은 픽셀을 쓴다.
+- **집계와 지표**: Track A 와 같다 — 주 지표 pooled(데이터셋 안 valid 픽셀 전체), 보조 이미지별 평균, 이미지 bootstrap 95 % CI(B = 2,000, seed 0, 모델끼리 같은 재표본), 도메인 행 = 데이터셋 평균, 부록 = 유클리드 RMSE, 보조 집계 = 4.9 절(거리 구간, 경계/내부, log-RMSE, SILog).
+  경계/내부는 픽셀마다 같은 정의로 나눈다(iBims-1 공식 경계 지도, NYUv2 이웃 GT 깊이 비 > 1.1, 3 px).
+- **원자료**: 픽셀 단위 대신 이미지별 통계 `stats_<모델>_<데이터셋>.parquet` — 집단(all / 거리 구간 / 경계·내부)마다 픽셀 수, 제곱오차 합, 상대오차 합, δ1 적중 수, log 오차 합·제곱합, cap 밖 예측 수, 유클리드 제곱오차 합. 표는 `eval/score_dense.py` 가 이것만 읽어 만든다.
+  이유: dense 픽셀을 모두 저장하면 모델당 수억 행이다. 위 통계로 모든 지표를 다시 계산할 수 있다(사용자 결정).
+- **검증**: DepthVLM 공식 dense 방식(GT 를 canonical 크기로 최근접 리사이즈, 예측은 그 크기로 bilinear, 이미지별 δ1)으로 DepthVLM 저장소 README 의 dense 표와 비교한다.
+  기준: DepthVLM NuScenes 0.838 / iBims-1 0.910, UniDepthV2 0.868 / 0.941, Metric3Dv2 0.843 / 0.724, Depth Pro 0.379 / 0.879 (논문 본문에는 없고 README 그림에만 있다. Depth Pro 는 GT 초점 사용으로 추정 — NOTES F-9).
+  로컬 확인: DepthVLM iBims-1 100 장 = **0.910** (일치). NuScenes 는 로컬 GPU 메모리 부족으로 H200 에서 확인한다.
+- **실행**: `bash run.sh trackb [데이터셋...]` (스모크는 `LIMIT=n`, 결과는 `smoke_b`).

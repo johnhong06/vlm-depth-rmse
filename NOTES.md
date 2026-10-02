@@ -174,6 +174,18 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - SILog: KITTI 정의(λ = 1, ln, ×100, 이미지별 평균). 저장소마다 다름(DAv2 λ = 0.5, Metric3D log10, UniDepth std) — 확인한 코드는 ext/ 의 각 평가 파일. log 지표에서만 cap 범위로 자름.
 - 검증: breakdown 의 'all' 행 = score.py 주 결과와 같음, SILog 직접 계산과 같음(UniDepthV2 iBims-1 5.702).
 
+### D-19 (2026-10-03) Track B 설계 (사용자 결정)
+- 목적: dense 예측이 가능한 모델끼리 valid GT 전체 픽셀로 비교. **DepthVLM 의 sparse(공통 점) 평가는 하지 않는다** — Track B 의 목적이 아님(사용자).
+- 모델: DepthVLM-4B + Track A 와 같은 pure vision 4 종 (DAv2-metric-L, UniDepthV2-L, Metric3Dv2-L, Depth Pro). DA3 metric 은 넣지 않음.
+- 데이터셋·mask·cap·깊이 정의(z)·평가 해상도(GT 원본, 예측 bilinear 리사이즈)·집계(pooled 주, 이미지별 보조, 이미지 bootstrap)·보조 집계 = Track A 와 같음.
+- 원자료: 이미지별 통계 (거리 구간·경계/내부별 n·제곱오차 합·상대오차 합·δ1 적중·log 오차 합·log 오차 제곱합) — 픽셀 parquet 은 모델당 수억 행이라 대신함.
+- zero-shot 여부 (DepthVLM 논문 §3·부록 A·표 9: 학습 = Argoverse2·Waymo·DDAD·nuScenes·ScanNet++·Taskonomy·HM3D·MP3D):
+  DepthVLM 은 DDAD·nuScenes 를 학습 분할로 학습(평가 분할과 장면 다름) → †. iBims-1·NYUv2·DIODE 는 zero-shot. pure vision 4 종은 D-12 그대로.
+- DepthVLM: Qwen3-VL-4B + DPT 헤드, 입력을 jsonl canonical_size(= GT fx 기준 f=1000)로 리사이즈 → GT intrinsics 사용, 출력 z, 값 > 0 (Softplus).
+- 검증: DepthVLM 저장소 README 의 dense 표(δ1, 공식 방식 = canonical 해상도·이미지별 평균): DepthVLM nuScenes 0.838 / iBims-1 0.910,
+  UniDepthV2 0.868 / 0.941, Metric3Dv2 0.843 / 0.724, DepthPro 0.379 / 0.879 (논문 본문에는 없음, NYUv2·DDAD·DIODE 참고 수치 없음).
+- README 를 공통 설계 / Track A / Track B 로 나눔.
+
 ## 확인이 필요한 발견
 
 - **F-1 ETH3D 정렬 — 확인됨 (2026-10-01)**: 벤치 RGB 는 보정본(`dslr_images_undistorted`, 약 6204×4135, PINHOLE)인데
@@ -342,3 +354,13 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · iBims-1 원거리(4 m–, 2,224 점): DepthLM RMSE 2.69 vs 다른 모델 0.90–1.44, δ1 0.545 vs 0.82–0.94. 근거리는 DepthLM 0.33 (UniDepthV2 0.29, Metric3Dv2 0.44) 로 대등.
   · iBims-1 경계(391 점) vs 내부: 모든 모델이 경계에서 나빠짐. δ1 하락 DepthLM 0.772 → 0.606 (−0.17), DAv2 −0.15, UniDepthV2 −0.10, Depth Pro −0.10, Metric3Dv2 −0.05 (경계 점이 적어 CI 넓음).
   · SILog iBims-1: DepthLM 16.1 vs 다른 모델 5.7–6.4 → DepthLM 오차는 전체 배율만의 문제가 아니라 거리에 따라 다르게 줄이는(압축) 구조 오차. nuScenes 는 19.6–26.2 로 비슷.
+- 2026-10-03 **F-12 실외 zero-shot 추가 후보 조사** (논문 학습 목록 대조): 6 모델 모두 zero-shot = **KITTI**, **ETH3D outdoor**. Cityscapes(Metric3Dv2 학습)·Argoverse2·Waymo(VLM 학습)·vKITTI2 탈락, Make3D 는 GT 사양 미확인.
+  KITTI 주의: VKITTI2(KITTI 장면 합성)를 DAv2 실외·Depth Pro·Metric3Dv2 가 학습 → 각주. 로컬: ~/data/kitti/depth_selection/val_selection_cropped (GT 1,000 장, 누적 LiDAR semi-dense, 위쪽 GT 없음, 관례 cap 80 m).
+  ETH3D outdoor 235 장(로컬)은 F-1 정렬 문제 미해결. 우리 체크포인트(Metric3D vit_large_800k, UniDepthV2 vitl14)는 KITTI 파인튜닝판이 아닌 일반판. Depth Pro 공개 가중치 학습 데이터는 미공개.
+- 2026-10-03 00:10 **Track B 코드·환경 최종 점검 (로컬)**:
+  · 환경 `envs/depthvlm.txt` (torch 2.7.1 cu128, transformers 5.2.0 = 체크포인트 config 버전, qwen-vl-utils 0.0.14): 공식 model/ 코드 import·가중치 로딩 정상. run.sh mkenv 가 depthvlm 에도 flash-attn 휠을 깐다.
+  · `eval/dense_full.py` (DepthVLM 어댑터 = 공식 eval.py 경로 + dense 4 종은 Track A 어댑터 재사용, 이미지별 통계·d1_canon) → `eval/score_dense.py` (표·도메인 평균·유클리드 부록·보조 집계·공식 방식 검증표).
+  · **검증: DepthVLM iBims-1 100 장 공식 방식 δ1 0.910 = README dense 표 0.910**. pooled RMSE 0.643, AbsRel 0.100, δ1 0.910. NuScenes 는 로컬 GPU 가 다른 학습(17 GB)과 공유돼 OOM → H200 에서 확인.
+  · run.sh `trackb` 종단 시험 (ibims1·nyuv2, LIMIT=2): 팩 풀기 → 모델 5 종 추론 → stats → 채점표 → zip 정상. 로컬은 시스템 파이썬에 uv 를 못 깔아(PEP 668) 기존 ~/venv/<모델> 을 WORK/envs 에 연결해 시험 — H200 은 uv 대체가 이미 정상(F-6).
+  · 겹침 그림(DepthVLM iBims-1) 경계 정렬 정상. pyflakes 깨끗(breakdown 의 안 쓰는 변수 제거), shellcheck 경고는 의도된 SC2046 1 건.
+  · H200 순서: `bash run.sh trackb ibims1 nuscenes LIMIT=3` (스모크) → `bash run.sh trackb ibims1 nyuv2 ddad nuscenes diode_outdoor` (DepthVLM NuScenes 검증 포함).
