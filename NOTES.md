@@ -166,6 +166,14 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   그래서 실측상 답이 z 에 가까운 iBims-1 도 공식 정의대로 변환한다(DepthLM 에 불리한 쪽).
 - 다른 선택지: 전부 변환(원래 규칙, DepthVLM 과 비교 쉬움, 주행 세트에서 DepthLM 에 불리) / 전부 그대로(NYUv2·DIODE 에서 정의가 틀림) / 실측 기반 선택(GT 를 보고 고름 — 기각).
 
+### D-18 (2026-10-02) 보조 집계 추가 — 거리 구간·경계/내부·log 지표 (외부 피드백, 사용자 결정)
+- 거리: 고정 미터 (실내 0–2 / 2–4 / 4 m–, 실외 0–10 / 10–30 / 30 m–). 데이터셋별 3 등분은 '원거리' 뜻이 달라져 기각. 처음 검토한 실내 3·6 m 는 NYUv2 원거리 210 점(2 %)이라 기각.
+- 경계: iBims-1 공식 경계 지도(86/100 장, 나머지 14 장 제외), NYUv2 이웃 GT 깊이 비 > 1.1 (Depth Pro 정의; iBims-1 공식 대비 재현 88 %, 일치 95 %), 3 px.
+  NuScenes·DDAD(LiDAR)·DIODE 제외 — DIODE 는 같은 정의가 점의 41 %(문턱 25 % 로도 29 %)를 경계로 잡음: 그림으로 보니 덤불·나무 전체, 유리창 안쪽(레이저 투과), 보도 스캔 줄무늬.
+  → 'DIODE 실외 GT 가 식생·유리에서 고르지 않다'는 것은 이제 그림 근거가 있다(앞서 철회한 GT 품질 얘기의 일부는 맞았던 셈). 이 표시(`boundary_ratio`)는 원인 분석 단계에서 'GT 요철 영역'으로 쓸 수 있게 파일에 남긴다.
+- SILog: KITTI 정의(λ = 1, ln, ×100, 이미지별 평균). 저장소마다 다름(DAv2 λ = 0.5, Metric3D log10, UniDepth std) — 확인한 코드는 ext/ 의 각 평가 파일. log 지표에서만 cap 범위로 자름.
+- 검증: breakdown 의 'all' 행 = score.py 주 결과와 같음, SILog 직접 계산과 같음(UniDepthV2 iBims-1 5.702).
+
 ## 확인이 필요한 발견
 
 - **F-1 ETH3D 정렬 — 확인됨 (2026-10-01)**: 벤치 RGB 는 보정본(`dslr_images_undistorted`, 약 6204×4135, PINHOLE)인데
@@ -324,3 +332,13 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   빼도 RMSE 변화는 0.01–0.03 m. 이미지로 보면 자기 차 범퍼 경계(GT 0.21 m), 가는 표지판(GT 7.2 m, 모델은 뒤 벽 32–41 m), 기둥 옆 잔디(GT 2.0 m, 투영 어긋남 의심) — 섞여 있다.
   nuScenes dense 모델의 큰 RMSE 는 각 모델 자신의 큰 오차(꼬리) 때문. DIODE 'GT 품질' 도 근거 없음: Metric3Dv2 가 δ1 0.85 를 내므로 GT 는 쓸 만하고,
   나머지 모델의 낮은 δ1 은 모델별 배율 편향(DepthLM 약 0.70 배, UniDepthV2 AbsRel 1.25 = 과대) 쪽이 유력 — 본 실험 zip 으로 확인.
+- **F-9 baseline δ1 이 DepthVLM 표 2 와 다른 세 칸 — 원인 확인 (2026-10-02, 로컬, 스크립트·결과 scratchpad/baseline_check)**:
+  · DepthVLM 저장소에 pure vision baseline 추론 코드 없음, 논문에도 설정(초점·해상도·체크포인트) 기재 없음 (README 130–133 은 표 그림뿐).
+  · **Depth Pro = 논문은 GT 초점(f_px = fx)을 넣었다 (신뢰도 높음)**: iBims-1 f=None 0.8285 → GT 초점 **0.8800 = 표 2 0.880**. nuScenes 앞 300 장 0.455 → 0.371 (같은 비율이면 전체 ≈ 0.393, 표 0.389).
+    우리 설정(f_px=None)은 공식 CLI 이고 설계표의 'GT intrinsics 미사용' 그대로 → 유지. 논문 수치 인용 시 '논문은 GT 초점 사용' 각주.
+  · **Metric3Dv2 nuScenes (0.847 vs 0.747) — 원인 못 찾음**: canonical 입력(0.829)·DepthVLM 식 GT/좌표 읽기(변화 2/3,000 점)·정면 fx 공용(0.686)·배율 누락(0.096) 모두 아님.
+    예측 ×0.9 이면 0.754 → 논문 쪽 예측이 약 10 % 짧았던 셈. iBims-1 은 정확히 맞으므로 체크포인트 차이는 아닌 것으로 추정(낮은 신뢰). 우리 설정은 hub 공식 경로 그대로 → 유지, 표에 '논문과 다름, 원인 미확인' 기록.
+- 2026-10-03 보조 집계를 파일럿 원자료로 시험 (eval/breakdown.py, prep/boundary_labels.py → bench/boundary_{ibims1,nyuv2,diode_outdoor}.parquet):
+  · iBims-1 원거리(4 m–, 2,224 점): DepthLM RMSE 2.69 vs 다른 모델 0.90–1.44, δ1 0.545 vs 0.82–0.94. 근거리는 DepthLM 0.33 (UniDepthV2 0.29, Metric3Dv2 0.44) 로 대등.
+  · iBims-1 경계(391 점) vs 내부: 모든 모델이 경계에서 나빠짐. δ1 하락 DepthLM 0.772 → 0.606 (−0.17), DAv2 −0.15, UniDepthV2 −0.10, Depth Pro −0.10, Metric3Dv2 −0.05 (경계 점이 적어 CI 넓음).
+  · SILog iBims-1: DepthLM 16.1 vs 다른 모델 5.7–6.4 → DepthLM 오차는 전체 배율만의 문제가 아니라 거리에 따라 다르게 줄이는(압축) 구조 오차. nuScenes 는 19.6–26.2 로 비슷.

@@ -29,6 +29,14 @@ NAMES = ["rmse", "absrel", "d1", "rmse_euc"]
 Z_SETS = {"nuscenes", "ddad"}  # DepthLM_Official curate_nuscenes_*.py (points_cam[2])·curate_ddad.py (dgp 깊이맵) = z 라벨. 나머지는 유클리드 라벨이거나 공식 정의 없음
 
 
+def depthlm_answers(d, mode):
+    """DepthLM 행의 pred 를 모드에 맞게 고른다 (규칙 1, D-17). official: Z_SETS 는 답 그대로, 나머지는 변환값. 다른 모델은 그대로."""
+    raw = (d.model == "DepthLM-12B") & ((mode == "raw") | ((mode == "official") & d.dataset.isin(Z_SETS)))
+    d = d.copy()
+    d.loc[raw, "pred"] = d.loc[raw, "pred_raw"]  # 답을 그대로 z 로 쓴다 (NaN 은 그대로 NaN)
+    return d
+
+
 def stats(g):
     """이미지별 충분통계: 픽셀 수, z 제곱오차 합, 상대오차 합, δ1 적중 합, 유클리드 제곱오차 합."""
     e, r = g.pred - g.gt_z, ray(g.u, g.v, (g.fx, g.fy, g.cx, g.cy))
@@ -54,9 +62,7 @@ def main():
     ap.add_argument("--depthlm", choices=["official", "converted", "raw"], default="official")
     a = ap.parse_args()
     d = pd.concat([pd.read_parquet(f, columns=["dataset", "image_id", "u", "v", "fx", "fy", "cx", "cy", "gt_z", "pred", "pred_raw", "model"]) for f in a.files])
-    d = d[d.model.isin(a.models)].copy()
-    raw = (d.model == "DepthLM-12B") & ((a.depthlm == "raw") | ((a.depthlm == "official") & d.dataset.isin(Z_SETS)))
-    d.loc[raw, "pred"] = d.loc[raw, "pred_raw"]  # 답을 그대로 z 로 쓴다 (NaN 은 그대로 NaN)
+    d = depthlm_answers(d[d.model.isin(a.models)], a.depthlm)
     dup = d.duplicated(["dataset", "image_id", "u", "v", "model"])
     assert not dup.any(), f"같은 (dataset, image_id, u, v, model) 행이 {dup.sum()} 개 겹친다 — 출력 폴더를 섞지 말 것"
     rng, rows, boot = np.random.default_rng(0), [], {}
