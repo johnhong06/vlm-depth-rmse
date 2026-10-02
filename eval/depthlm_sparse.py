@@ -148,7 +148,7 @@ def main():
             flush()
         batch.append(q)
         n += 1
-        if n % (a.bsz * 20) == 0:
+        if n % 64 == 0:  # 정상 속도면 1 분 안팎마다 저장·진행 줄 — run.sh 의 멈춤 감지와 이어 돌기 단위
             save()
             print(f"  {n} 질의, {(time.time() - t0) / n:.3f} s/점", flush=True)
         if a.limit and n >= a.limit:

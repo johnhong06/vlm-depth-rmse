@@ -23,6 +23,11 @@ mkdir -p "$WORK"; export HF_HOME=$WORK/hf TORCH_HOME=$WORK/torch PIP_CACHE_DIR=$
 TAG=${MODE}_$(date +%m%d_%H%M); LOG=$OUT/run_$TAG.log; exec > >(tee -a "$LOG") 2>&1; TEE=$!
 trap 'exec >&- 2>&-; wait $TEE' EXIT   # 끝날 때 tee 가 마지막 줄까지 쓰고 나가게
 echo "[setup] $(date '+%F %T') MODE=$MODE ${DM:-} DATASETS=$DATASETS OUT=$OUT WORK=$WORK commit=$(git rev-parse --short HEAD 2>/dev/null)"
+# 작업이 강제 종료되면 콘솔 로그를 받을 수 없다 → 시간 제한·멈춤 감지로 스스로 멈추고 정상 종료해 표·로그를 남긴다 (DepthLM 은 저장된 점부터 이어서 돈다)
+BUDGET_MIN=${BUDGET_MIN:-0}   # 시간 제한(분). 정상 작업도 멈출 수 있어 기본은 끔(0) — 필요할 때만 BUDGET_MIN=<분> 으로 켠다
+STALL=$((${STALL_MIN:-40} * 60)); DEADLINE=$((SECONDS + BUDGET_MIN * 60))   # 멈춤 = DepthLM 로그가 STALL 초 동안 그대로 (정상이면 64 질의마다, 1 분 안팎마다 진행 줄)
+left() { if [ "$BUDGET_MIN" -eq 0 ]; then echo 999999; else echo $((DEADLINE - SECONDS)); fi; }   # 남은 초
+case $MODE in smoke|depthlm|all) echo "[setup] DepthLM 이 $((STALL / 60))분 동안 진행이 없으면 멈춘 것으로 보고 중단$([ "$BUDGET_MIN" -gt 0 ] && echo ", 시간 제한 ${BUDGET_MIN}분") — 중단해도 표·로그를 남기고 정상 종료";; esac
 
 # --- 모델마다 따로 만드는 환경 (규칙 10). conda-forge python 3.12 (defaults 채널은 비대화형에서 약관 동의를 요구할 수 있다), 실패하면 uv ---
 CONDA=$(command -v conda || echo /opt/conda/bin/conda)
@@ -72,37 +77,56 @@ depthlm_weights() {  # 이미 풀린 폴더 → 없으면 옛 팩(depthlm-distil
   echo "$M"
 }
 alive() { local p; for p in "$@"; do kill -0 "$p" 2>/dev/null && return 0; done; return 1; }   # 하나라도 살아 있으면 참
+progress() {  # 데이터셋 프로세스수 → 프로세스별 마지막 진행 줄(누적 질의·s/점) + GPU 상태
+  local i l
+  for i in $(seq 0 $(($2 - 1))); do
+    l=$(grep -E "질의, |^\[" "$A/log_depthlm_$1_$i.txt" | tail -n 1)
+    echo "[진행 $(date '+%T')] $1 $i: ${l:-(첫 진행 줄 전) $(tail -c 150 "$A/log_depthlm_$1_$i.txt" | tr '\r\n' '  ')}"
+  done
+  nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader 2>/dev/null | sed "s/^/[진행] GPU 사용률, 메모리: /"
+}
 run_depthlm() {  # $1 = 점 수 제한 (0 = 전부)
-  local PY M NPROC=${NPROC:-2} EVERY=${PROGRESS_SEC:-600} pids t i l
+  local PY M NPROC=${NPROC:-2} EVERY=${PROGRESS_SEC:-600} pids t i sig last idle
   PY=$(mkenv depthlm) || return 1
   M=$(depthlm_weights) || return 1
   [ "$1" -gt 0 ] && NPROC=1
   echo "[depthlm] $(date '+%T') 가중치 $M ($(ls "$M"/*.safetensors | wc -l) 조각), 프로세스 $NPROC, CPU $(nproc)"
   for ds in $DATASETS; do
+    [ "$(left)" -le 0 ] && { echo "[시간 제한] DepthLM $ds 건너뜀 — 같은 명령을 다시 넣으면 이어서 돈다"; continue; }
+    [ -n "${DLSTALL:-}" ] && { echo "[중단] DepthLM $ds 건너뜀 — 앞 데이터셋에서 멈춤이 감지됨"; continue; }
     pids=()
     for i in $(seq 0 $((NPROC - 1))); do   # 한 GPU 에 NPROC 개 (각 가중치 25 GB + 비전 eager attention 최대 약 13 GB)
       $PY eval/depthlm_sparse.py --dataset "$ds" --data_root "$WORK/bench" --model "$M" --out "$A" --shard "$i" --nshard "$NPROC" --limit "$1" > "$A/log_depthlm_${ds}_$i.txt" 2>&1 &
       pids+=($!)
     done
-    t=0
-    while alive "${pids[@]}"; do   # 추론 중에는 콘솔이 조용하므로 EVERY 초마다 프로세스별 마지막 진행 줄과 GPU 상태를 찍는다
+    t=0; last=-1; idle=0
+    while alive "${pids[@]}"; do   # 추론 중에는 콘솔이 조용하므로 EVERY 초마다 진행 상황을 찍고, 시간 제한·멈춤(로그가 STALL 초 동안 그대로)이면 중단
       sleep 10; t=$((t + 10))
-      [ $((t % EVERY)) -ne 0 ] && continue
-      for i in $(seq 0 $((NPROC - 1))); do
-        l=$(grep -E "질의, |^\[" "$A/log_depthlm_${ds}_$i.txt" | tail -n 1)
-        echo "[진행 $(date '+%T')] $ds $i: ${l:-(첫 진행 줄 전) $(tail -c 150 "$A/log_depthlm_${ds}_$i.txt" | tr '\r\n' '  ')}"
-      done
-      nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader 2>/dev/null | sed "s/^/[진행] GPU 사용률, 메모리: /"
+      sig=$(cat "$A"/log_depthlm_"${ds}"_*.txt 2>/dev/null | wc -c)
+      if [ "$sig" = "$last" ]; then idle=$((idle + 10)); else idle=0; last=$sig; fi
+      if [ "$(left)" -le 0 ] || [ "$idle" -ge "$STALL" ]; then
+        progress "$ds" "$NPROC"
+        echo "[중단] DepthLM $ds: $([ "$idle" -ge "$STALL" ] && echo "$((STALL / 60))분 동안 진행 없음" || echo "시간 제한 ${BUDGET_MIN}분") — 저장된 점까지만 표에 들어간다. 같은 명령을 다시 넣으면 이어서 돈다"
+        [ "$idle" -ge "$STALL" ] && DLSTALL=1
+        kill "${pids[@]}" 2>/dev/null; break
+      fi
+      [ $((t % EVERY)) -eq 0 ] && progress "$ds" "$NPROC"
     done
-    wait
+    for i in 1 2 3 4 5 6; do alive "${pids[@]}" || break; sleep 10; done   # 중단했으면 1 분 기다린 뒤 강제 종료
+    alive "${pids[@]}" && { kill -9 "${pids[@]}" 2>/dev/null; sleep 5; }
+    alive "${pids[@]}" && echo "!!! DepthLM 프로세스가 종료되지 않음 (GPU 호출에서 멈춘 것으로 보임) — 기다리지 않고 진행"
+    alive "${pids[@]}" || wait "${pids[@]}" 2>/dev/null
     grep -hE "^\[|vs gt_z" "$A"/log_depthlm_${ds}_*.txt | tail -n $((4 * NPROC))   # 프로세스마다 시작·요약·δ1 두 줄
     grep -l "Traceback" "$A"/log_depthlm_${ds}_*.txt 2>/dev/null | while read -r f; do echo "!!! 오류: $f"; tail -5 "$f"; done
   done
 }
 run_dense() {  # $1 = 모델 키, $2 = 이미지 수 제한 (0 = 전부)
   local PY; PY=$(mkenv "$1") || return 1
-  (cd eval && $PY dense_sparse.py --model "${MNAME[$1]}" --datasets $DATASETS --data_root "$WORK/bench" --out "$A" --limit "$2" 2>&1 \
+  [ "$(left)" -le 0 ] && { echo "[시간 제한] dense $1 건너뜀 — 같은 명령을 다시 넣으면 돈다"; return 0; }
+  (cd eval && timeout -k 60 "$(left)" $PY dense_sparse.py --model "${MNAME[$1]}" --datasets $DATASETS --data_root "$WORK/bench" --out "$A" --limit "$2" 2>&1 \
      | tee "$A/log_dense_$1.txt" | grep -E "^\[|Traceback|Error")
+  [ "$(left)" -le 0 ] && echo "[시간 제한] dense $1 중단 — 끝난 데이터셋까지만 저장. 같은 명령을 다시 넣으면 돈다"
+  return 0
 }
 
 case $MODE in
