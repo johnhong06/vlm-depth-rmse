@@ -13,7 +13,9 @@ cd "$(dirname "$0")" || exit 1
 REPO=$PWD
 MODE=${1:-smoke}; shift || true
 case $MODE in env|smoke|depthlm|all|m3d_nyu) ;; dense) DM=${1:?"dense 다음에 모델 이름"}; shift;; *) echo "!!! MODE 는 env|smoke|depthlm|dense|all|m3d_nyu"; exit 1;; esac
-DATASETS=${*:-ibims1 nuscenes}
+ARGS=(); for a in "$@"; do case $a in   # 이슈 한 줄 명령에서는 환경변수를 줄 수 없어 KEY=값 을 인자로도 받는다 (V3 run.sh 와 같은 방식)
+  NPROC=*|STALL_MIN=*|BUDGET_MIN=*|PROGRESS_SEC=*|DATA_SRC=*) export "${a%%=*}=${a#*=}";; *) ARGS+=("$a");; esac; done
+DATASETS=${ARGS[*]:-ibims1 nuscenes}
 OUT=$([ -d /app/output ] && echo /app/output/vdr || echo "$PWD/results")
 A=$OUT/track_a; [ "$MODE" = smoke ] && A=$OUT/smoke_a   # 스모크는 따로 — 본 실행이 이어받아 점이 겹치지 않게
 mkdir -p "$A" "$OUT/tables"
@@ -22,6 +24,7 @@ WORK=${WORK:-$(w /app/data/vdr_work && echo /app/data/vdr_work || { w /app/scrat
 mkdir -p "$WORK"; export HF_HOME=$WORK/hf TORCH_HOME=$WORK/torch PIP_CACHE_DIR=$WORK/pip VDR_EXT=$WORK/ext PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 TAG=${MODE}_$(date +%m%d_%H%M); LOG=$OUT/run_$TAG.log; exec > >(tee -a "$LOG") 2>&1; TEE=$!
 trap 'exec >&- 2>&-; wait $TEE' EXIT   # 끝날 때 tee 가 마지막 줄까지 쓰고 나가게
+# 주의: H200 이미지의 bash 5.1 은 인자 없는 `wait` 가 위 tee 까지 기다려 영원히 멈춘다 (NOTES F-8). wait 에는 항상 PID 를 준다
 echo "[setup] $(date '+%F %T') MODE=$MODE ${DM:-} DATASETS=$DATASETS OUT=$OUT WORK=$WORK commit=$(git rev-parse --short HEAD 2>/dev/null)"
 # 작업이 강제 종료되면 콘솔 로그를 받을 수 없다 → 시간 제한·멈춤 감지로 스스로 멈추고 정상 종료해 표·로그를 남긴다 (DepthLM 은 저장된 점부터 이어서 돈다)
 BUDGET_MIN=${BUDGET_MIN:-0}   # 시간 제한(분). 정상 작업도 멈출 수 있어 기본은 끔(0) — 필요할 때만 BUDGET_MIN=<분> 으로 켠다

@@ -178,6 +178,24 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   42 장에서 아래쪽 영역을 두 가정(z / 유클리드)으로 3D 복원해 RANSAC 평면 인라이어(0.5 %)를 비교 — **42 장 모두 z 가정이 더 평평** (인라이어 차 중앙 +0.23).
 - **F-6 H200 이미지에 conda 없음 (2026-10-01 env 작업)**: PATH 에도 `/opt/conda/bin/conda` 에도 없어 run.sh 가 모델마다 uv 로 대체했다(`uv venv -p 3.12`).
   모델별 환경 분리(규칙 10)는 그대로이고 Python 3.12·torch 2.7.1+cu128·flash-attn 휠(cp312)도 정상. 로그의 '!!! [env] conda 실패 → uv' 와 pip root 경고는 이 대체 과정의 메시지라 무시해도 된다.
+- **F-8 H200 작업이 끝나지 않던 원인 = bash 5.1 의 `wait` (확인됨, 2026-10-02)**: run.sh 는 출력을 `exec > >(tee …)`(프로세스 치환)로 보낸다.
+  H200 이미지(Ubuntu 22.04, bash 5.1.16)에서는 인자 없는 `wait` 가 백그라운드 작업뿐 아니라 이 tee 까지 기다리는데, tee 는 스크립트가 끝나야 끝나므로 영원히 멈춘다.
+  로컬 bash 5.3 에서는 멈추지 않아 로컬 시험에서 드러나지 않았다. V3 는 프로세스 치환을 쓰지 않아 해당 없음.
+  · 증거: smoke(작업 872) 묶음 — DepthLM iBims-1 48 점은 끝났는데(`log_depthlm_ibims1_0.txt` 요약 있음) run.sh 는 요약을 찍지 않았고 NYUv2 로그도 없음 = DepthLM 프로세스가 끝난 뒤 `wait` 에서 멈춤.
+    10 분 진행 줄이 없던 것도 프로세스가 10 분 전에 끝났기 때문. 첫 depthlm 작업(21:42 KST, 11 h+)도 같은 `wait` — DepthLM 은 끝났을 가능성이 크다(track_a 결과 확인 필요).
+  · 재현: 로컬 pytorch/pytorch 컨테이너(bash 5.1.16)에서 최소 스크립트가 `wait` 에서 멈춤(종료 코드 124), 로컬 bash 5.3 은 통과.
+    run.sh 구조(tee + 종료 trap + DepthLM 함수)를 그대로 옮긴 시험: 8b695c4 는 멈춤(124), 6a6f66b 이후(PID 를 준 `wait`)는 두 데이터셋을 돌고 정상 종료.
+  · 수정: 6a6f66b 에서 `wait "${pids[@]}"` 로 바뀌어 이미 해결(멈춤 감지 수정 때 우연히). 남은 `wait` 는 종료 trap 의 `wait $TEE` 뿐(5.1 에서 정상 — env 작업이 끝남). run.sh 에 경고 주석.
+  · 부수 실측: **H200 DepthLM 속도 0.447 s/점 (프로세스 1 개)**, 파싱 실패·잘린 답 0. 48 점 δ1 0.417 은 첫 이미지 한 장(lectureroom_06, 로컬에서도 크게 낮게 답한 장면)이라 대표값 아님.
+- **F-7 V3 (depthlm-distill-v3, H200 에서 4 h 작업 정상) 와 H200 사용 방식 차이 (2026-10-02, DepthLM 본 실행이 끝나지 않는 원인 후보)**:
+  ① 로그 — V3 는 명령마다 `| tee -a 로그`, 여기는 스크립트 전체를 `exec > >(tee …)` 로 돌리고 EXIT 에서 그 tee 를 기다림.
+  ② 파이썬 출력 — V3 는 `PYTHONUNBUFFERED=1`·`python -u`, 여기는 없음(주요 줄만 flush).
+  ③ DepthLM 환경 — V3/V2 교사(H200 4 프로세스 라벨링 정상)는 이미지 파이썬 + torch 2.11 + transformers 5.16.1, `device_map="cuda:0"`, sdpa.
+     여기는 공식 버전(uv 가상환경, torch 2.7.1 + transformers 4.51.1 + flash-attn 2.8.3, text FA2 + vision eager, `device_map="auto"`).
+     H200 에서 이 조합은 env 점검 8 점(배치 2, 같은 크기 이미지 → 패딩 없음)만 통과했고, 긴 실행(배치 최대 4, 크기가 다른 이미지 → 왼쪽 패딩)은 끝난 적이 없다.
+  ④ 옵션 — V3 는 `KEY=값` 을 명령 인자로 받음(이슈 한 줄 명령에서 환경변수 불가), 여기는 환경변수만 → **수정함**(NPROC·STALL_MIN·BUDGET_MIN·PROGRESS_SEC·DATA_SRC).
+  같은 점: 백그라운드 프로세스 + wait, /app/scratch 작업마다 비워짐. → 디버그 묶음(`vdr_debug.tar.gz`)으로 ①과 ③ 중 어느 쪽인지 가린 뒤 고친다.
+  ③이면 V3 의 검증된 방식(sdpa, cuda:0)으로 바꾸는 것은 공식 설정(FA2)과 다르므로 사용자 확인 후(둘 다 exact attention, D-12 에서 δ1 동일).
 - **F-3** nuScenes `v1.0-test_meta.tgz`: 버킷의 `md5.checksum` 과 MD5 가 다르다(크기 70,803,751 B 는 일치, gzip 무결성 통과). 체크섬 목록이 옛것으로 보인다.
 
 ## 실행 로그
