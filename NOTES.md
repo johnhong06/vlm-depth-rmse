@@ -364,3 +364,7 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · run.sh `trackb` 종단 시험 (ibims1·nyuv2, LIMIT=2): 팩 풀기 → 모델 5 종 추론 → stats → 채점표 → zip 정상. 로컬은 시스템 파이썬에 uv 를 못 깔아(PEP 668) 기존 ~/venv/<모델> 을 WORK/envs 에 연결해 시험 — H200 은 uv 대체가 이미 정상(F-6).
   · 겹침 그림(DepthVLM iBims-1) 경계 정렬 정상. pyflakes 깨끗(breakdown 의 안 쓰는 변수 제거), shellcheck 경고는 의도된 SC2046 1 건.
   · H200 순서: `bash run.sh trackb ibims1 nuscenes LIMIT=3` (스모크) → `bash run.sh trackb ibims1 nyuv2 ddad nuscenes diode_outdoor` (DepthVLM NuScenes 검증 포함).
+- 2026-10-03 H200 Track B 스모크 `trackb ibims1 nuscenes LIMIT=3` (commit a73343c, 16 분) — 정상 종료. DepthVLM attention = flash_attention_2 (공식), 0.4–0.8 s/장.
+  dense 4 종 값은 Track A smoke 의 전체 GT 통계와 같음(예: DAv2 nuScenes RMSE 10.582) = 두 경로 일치. 검증표 값은 3 장이라 판단 근거 아님.
+  **발견: 경계/내부 표가 비었다** — 데이터 팩에는 추론에 쓰는 파일만 넣어 iBims-1 공식 경계 지도(edges/)가 없음. → `prep/ibims1_edges.py`: trackb 에서 공식 배포처(TUM dataserv)
+  ibims1_core_raw.zip 을 받아 공식 sha512 일치 시 edges 만 풀기(실패하면 경고만, iBims-1 경계 집계만 빠짐). 로컬 시험 15 초, 86 장, 재실행 시 건너뜀. Track A 보조 집계는 저장소의 bench/boundary_*.parquet 를 써서 영향 없음.

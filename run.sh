@@ -149,7 +149,8 @@ case $MODE in
   depthlm) run_depthlm 0;;
   all) run_depthlm 0; for m in dav2 unidepth metric3d depthpro; do run_dense $m 0; done;;
   dense) for m in $([ "$DM" = all ] && echo dav2 unidepth metric3d depthpro || echo "$DM"); do run_dense "$m" 0; done;;
-  trackb) for m in depthvlm dav2 unidepth metric3d depthpro; do run_full $m; done;;
+  trackb) [[ " $DATASETS " == *" ibims1 "* ]] && python3 prep/ibims1_edges.py "$WORK/bench"
+    for m in depthvlm dav2 unidepth metric3d depthpro; do run_full $m; done;;
   m3d_nyu) PY=$(mkenv metric3d) && (cd eval && $PY m3d_nyu.py "$WORK/bench/nyu_official" 2>&1 | tee "$A/log_m3d_nyu.txt" | grep -E "^\[|Traceback|Error");;
 esac
 
