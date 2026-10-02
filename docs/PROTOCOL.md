@@ -12,7 +12,7 @@ Track A를 재현하거나 검토할 때 필요한 설정을 모은 문서다. �
 
 | 모델 | 크기 | GT intrinsics | 도메인 정보 | 출력 |
 |---|---|---|---|---|
-| DepthLM-12B | 12B (3B·7B는 미공개) | 사용 | 미사용 | 유클리드 거리 → z 변환 (4.1절) |
+| DepthLM-12B | 12B (3B·7B는 미공개) | 사용 | 미사용 | 숫자 답 → 데이터셋별 공식 정의에 따라 z 그대로 또는 유클리드 → z 변환 (4.1절) |
 | Depth Anything V2 metric | ViT-L | 미사용 | 사용: 실내 Hypersim 모델, 실외 VKITTI 모델 | z-depth |
 | UniDepthV2 | ViT-L | 미사용 | 미사용 | z-depth |
 | Metric3Dv2 | ViT-L | 사용 (fx) | 미사용 | z-depth |
@@ -103,15 +103,29 @@ Metric3D의 공식 경로는 hub 데모(fx, 평균색 패딩, clamp 0–300)와 
 
 ### 4.1 깊이 정의 (규칙 1)
 
-모든 GT와 예측은 z-depth(광축 방향 거리, m)다. DepthLM의 출력(유클리드 거리 d)은 다음 식으로 바꾼다.
+모든 GT와 예측은 z-depth(광축 방향 거리, m)다. dense 모델 4개의 출력은 z-depth라 변환하지 않는다. UniDepthV2는 `depth` 출력이 z이고 `radius`가 유클리드 거리다. Depth Pro는 코드와 논문에 명시가 없어 평면 검증으로 z임을 확인했다.
+
+DepthLM은 "카메라에서 얼마나 떨어져 있나"에 숫자로 답한다. 이 답을 어떤 거리로 볼지는 **DepthLM 공식 코드가 그 데이터셋에 둔 GT 정의**를 따른다(2026-10-02 개정, NOTES D-17).
+
+| 데이터셋 | DepthLM 공식 GT 정의 | 답 처리 |
+|---|---|---|
+| NuScenes, DDAD | z (공식 데이터 정리 코드 `curate_nuscenes_*.py`의 `points_cam[2]`, `curate_ddad.py`의 깊이맵) | 그대로 z로 쓴다 |
+| iBims-1, NYUv2 | 유클리드 거리 (공식 예제·정리 코드) | 아래 식으로 z로 바꾼다 |
+| DIODE Outdoor | 공식 정의 없음 → 질문의 기본 뜻(카메라에서의 거리) = 유클리드 | 아래 식으로 z로 바꾼다 |
 
 ```
 z = d / sqrt(1 + ((u − cx)/fx)² + ((v − cy)/fy)²)
 ```
 
-(u, v)와 intrinsics는 원본 해상도 값을 쓰고, 변환 전 답은 `pred_raw`에 남긴다. dense 모델 4개의 출력은 z-depth라 변환하지 않는다. UniDepthV2는 `depth` 출력이 z이고 `radius`가 유클리드 거리다. Depth Pro는 코드와 논문에 명시가 없어 평면 검증으로 z임을 확인했다.
+(u, v)와 intrinsics는 원본 해상도 값을 쓴다. 답 그대로는 `pred_raw`, 변환값은 `pred`에 둘 다 남기고, 표는 `eval/score.py --depthlm`으로 고른다(`official` = 위 표, 주 결과).
+부록으로 `converted`(모든 데이터셋 변환 — 원래 규칙 1, DepthVLM 논문과 같은 방식)와 `raw`(모든 데이터셋 그대로)를 함께 낸다.
 
 이유: 정의가 섞이면 가장자리·원거리에서 체계적 편향이 생겨 RMSE가 부풀려진다.
+
+개정 이유: 원래 규칙은 DepthLM 답을 모두 유클리드로 보고 변환했다. 그런데 DepthLM은 데이터셋마다 다른 정의로 학습했다(주행 데이터셋은 z 라벨, 나머지는 유클리드 라벨).
+dense 모델은 자기가 학습한 정의(z)로 평가받으므로, DepthLM도 자기가 배운 정의로 평가해야 공정하다. DepthLM 논문도 이 방식으로 평가했다(우리 답 그대로의 δ1이 DepthLM 논문 표 1과 맞음: NuScenes 0.823 vs 0.819, DDAD 0.680 vs 0.670).
+데이터셋마다 무엇을 쓸지는 우리 결과(GT와의 비교)가 아니라 공식 코드의 정의로 미리 정했다. GT를 보고 유리한 쪽을 고르면 정답을 보고 점수를 고르는 셈이 되기 때문이다.
+그래서 실측으로는 답이 z에 가까웠던 iBims-1도 공식 정의(유클리드)대로 변환한다. 파일럿 실측(검증 ③, NOTES F-10)은 이 결정의 계기일 뿐 데이터셋별 선택 기준이 아니다.
 
 ### 4.2 기준 좌표계 (규칙 2)
 

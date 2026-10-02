@@ -3,6 +3,8 @@
   주 결과 = z-depth 공간 (pred vs gt_z). 부록 = 유클리드 공간 RMSE (둘 다 광선 계수를 곱함 — AbsRel·δ1 은 비율이라 공간과 무관, 규칙 8).
   주 지표 = 데이터셋 안 모든 픽셀 pooled, 보조 = 이미지별 계산 후 평균 (규칙 6). 도메인 행 = 그 도메인 데이터셋 값의 평균 (실내/실외만, 규칙 5).
   bootstrap: 데이터셋마다 이미지를 복원추출(B 회, 시드 0), 도메인 값은 같은 회차의 데이터셋 값 평균 (규칙 7).
+  DepthLM 답의 깊이 정의 (규칙 1, NOTES D-17): --depthlm official(주 결과) = DepthLM 공식 데이터 정리 코드가 z 라벨을 쓰는 세트(Z_SETS)는 답을 그대로 z 로,
+  나머지는 유클리드로 보고 z 로 변환. converted(부록 a, DepthVLM 과 같은 방식) = 전부 변환, raw(부록 b) = 전부 그대로.
 사용: python eval/score.py results/track_a/*.parquet --models DepthLM-12B UniDepthV2-L ... --out tables/track_a
 """
 import argparse
@@ -24,6 +26,7 @@ META = {
 TRAINED = {("Metric3Dv2-L", "ddad"): "trained on DDAD", ("DepthLM-12B", "nuscenes"): "trained on nuScenes (other scenes)"}
 CEILING = {("DAv2-metric-L", "ibims1"): "model max 20 m < cap 25 m", ("DAv2-metric-L", "ddad"): "model max 80 m < cap 120 m"}
 NAMES = ["rmse", "absrel", "d1", "rmse_euc"]
+Z_SETS = {"nuscenes", "ddad"}  # DepthLM_Official curate_nuscenes_*.py (points_cam[2])·curate_ddad.py (dgp 깊이맵) = z 라벨. 나머지는 유클리드 라벨이거나 공식 정의 없음
 
 
 def stats(g):
@@ -48,9 +51,12 @@ def main():
     ap.add_argument("--models", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--B", type=int, default=2000)
+    ap.add_argument("--depthlm", choices=["official", "converted", "raw"], default="official")
     a = ap.parse_args()
-    d = pd.concat([pd.read_parquet(f, columns=["dataset", "image_id", "u", "v", "fx", "fy", "cx", "cy", "gt_z", "pred", "model"]) for f in a.files])
-    d = d[d.model.isin(a.models)]
+    d = pd.concat([pd.read_parquet(f, columns=["dataset", "image_id", "u", "v", "fx", "fy", "cx", "cy", "gt_z", "pred", "pred_raw", "model"]) for f in a.files])
+    d = d[d.model.isin(a.models)].copy()
+    raw = (d.model == "DepthLM-12B") & ((a.depthlm == "raw") | ((a.depthlm == "official") & d.dataset.isin(Z_SETS)))
+    d.loc[raw, "pred"] = d.loc[raw, "pred_raw"]  # 답을 그대로 z 로 쓴다 (NaN 은 그대로 NaN)
     dup = d.duplicated(["dataset", "image_id", "u", "v", "model"])
     assert not dup.any(), f"같은 (dataset, image_id, u, v, model) 행이 {dup.sum()} 개 겹친다 — 출력 폴더를 섞지 말 것"
     rng, rows, boot = np.random.default_rng(0), [], {}
@@ -88,9 +94,10 @@ def main():
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     t.to_csv(a.out + ".csv", index=False)
     f = lambda r, k, p: f"{r[k]:.{p}f} [{r[k + '_lo']:.{p}f}, {r[k + '_hi']:.{p}f}]"
+    ASIS = lambda m, ds: ("answer used as z as is (DepthLM official z labels for this dataset)" if m == "DepthLM-12B" and ds in Z_SETS and a.depthlm == "official" else None)
     members = t[t.dataset != "mean"].groupby("domain").dataset.unique().to_dict()
     tags = lambda r: [s for ds in (members[r.domain] if r.dataset == "mean" else [r.dataset])  # 도메인 평균 행은 구성 데이터셋의 각주를 물려받는다
-                      for s in (TRAINED.get((r.model, ds)), CEILING.get((r.model, ds))) if s]
+                      for s in (TRAINED.get((r.model, ds)), CEILING.get((r.model, ds)), ASIS(r.model, ds)) if s]
     notes = {v: i + 1 for i, v in enumerate(dict.fromkeys(s for _, r in t.iterrows() for s in tags(r)))}  # 표에 나오는 각주만, 나오는 순서대로
     mark = lambda r: "".join(f"<sup>{notes[s]}</sup>" for s in dict.fromkeys(tags(r)))
     main_t = ["| Domain | Dataset | Model | GT intrinsics | Domain info | RMSE↓ (m) | AbsRel↓ | δ1↑ | per-image RMSE / AbsRel / δ1 | px (excl.) | img |",
@@ -102,7 +109,7 @@ def main():
                       f"{r.rmse_img:.3f} / {r.absrel_img:.3f} / {r.d1_img:.3f} | {r.n_px} ({r.n_excl}) | {r.n_img} |")
         app_t.append(f"| {r.domain} | {r.dataset} | {r.model} | {f(r, 'rmse', 3)} | {f(r, 'rmse_euc', 3)} | {r.rmse_img:.3f} / {r.rmse_euc_img:.3f} |")
     foot = "\n".join(f"{i}. {s}" for s, i in notes.items())
-    note = ("Main metrics: z-depth, pooled over all common pixels of a dataset; brackets = 95 % CI from an image-level bootstrap "
+    note = (f"DepthLM answers: {a.depthlm}. Main metrics: z-depth, pooled over all common pixels of a dataset; brackets = 95 % CI from an image-level bootstrap "
             f"(B = {a.B}, seed 0). Per-image = metric per image, then averaged. Domain rows ('mean') average their datasets; "
             "indoor and outdoor are never averaged together. px (excl.) = common pixels (pixels dropped because some model gave no prediction).")
     open(a.out + ".md", "w").write("\n".join(main_t) + "\n\n" + note + "\n\n" + foot + "\n\n### Appendix — RMSE in Euclidean distance\n\n" + "\n".join(app_t) + "\n")

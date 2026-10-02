@@ -156,6 +156,16 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - 결과 표의 DAv2 상한 표시는 해당 칸(iBims-1·DDAD 의 DAv2)에 ‡ 로 단다 — 사용자 템플릿의 "데이터셋 표시" 각주를 칸 표시로 해석.
 - 파일 이름은 사용자 지정대로 `docs/PROTOCOL.md` (git mv). 참조는 CLAUDE.md 한 곳.
 
+### D-17 (2026-10-02) 규칙 1 개정 — DepthLM 답의 깊이 정의는 DepthLM 공식 코드의 데이터셋별 GT 정의를 따른다 (사용자 결정)
+- 주 결과(`score.py --depthlm official`): nuScenes·DDAD 는 답을 그대로 z 로(공식 정리 코드가 z 라벨: `curate_nuscenes_*.py` points_cam[2], `curate_ddad.py` 깊이맵),
+  iBims-1·NYUv2 는 유클리드로 보고 z 로 변환(공식 예제·정리 코드가 유클리드), DIODE Outdoor 는 공식 정의가 없어 질문의 기본 뜻(유클리드)으로 변환.
+- 부록: `converted`(전부 변환 = 원래 규칙 1, DepthVLM 논문 방식) · `raw`(전부 그대로). 두 값이 원자료에 있어 재실행 없음.
+- 왜: dense 모델은 자기가 학습한 정의(z)로 평가받으므로 DepthLM 도 자기가 배운 정의로 평가해야 공정하다(사용자 제기). DepthLM 논문도 그렇게 평가했다
+  (답 그대로 δ1 이 DepthLM 표 1 과 일치: nuScenes 0.823 vs 0.819, DDAD 0.680 vs 0.670).
+- 선택 기준은 우리 결과가 아니라 공식 코드의 정의로 미리 정했다 — GT 와 비교한 실측(F-10, 검증 ③)으로 데이터셋마다 고르면 정답을 보고 유리한 쪽을 고르는 셈.
+  그래서 실측상 답이 z 에 가까운 iBims-1 도 공식 정의대로 변환한다(DepthLM 에 불리한 쪽).
+- 다른 선택지: 전부 변환(원래 규칙, DepthVLM 과 비교 쉬움, 주행 세트에서 DepthLM 에 불리) / 전부 그대로(NYUv2·DIODE 에서 정의가 틀림) / 실측 기반 선택(GT 를 보고 고름 — 기각).
+
 ## 확인이 필요한 발견
 
 - **F-1 ETH3D 정렬 — 확인됨 (2026-10-01)**: 벤치 RGB 는 보정본(`dslr_images_undistorted`, 약 6204×4135, PINHOLE)인데
@@ -285,3 +295,32 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · **수정 (사용자 지적: "임계를 두면 정상인데 멈출 수도")**: 시간 제한은 정상 작업도 끊을 수 있어 기본을 끔(`BUDGET_MIN` 0, 원할 때만 켬). 멈춤 감지만 기본으로 남김 —
     진행 줄이 64 질의(정상 1 분 안팎)마다라서 40 분 무진행은 정상보다 40 배 이상 느려야 생긴다. 걸려도 64 질의마다 저장돼 다시 넣으면 이어서 돈다. 기본값으로 재시험(정상·멈춤) 통과.
   · 지금 도는 smoke 는 이전 코드(8b695c4: 진행 줄만 있음). 서버의 실시간 로그 파일 `/app/output/vdr/run_smoke_<MMDD_HHMM>.log`, `smoke_a/log_depthlm_<ds>_0.txt` 는 강제 종료돼도 남는다. 다음: 진행 출력 수정본 푸시 → smoke 5 개 세트(새 팩 확인 + DepthLM 1 프로세스 속도) → 파일럿.
+- 2026-10-02 12:12–12:34 KST H200 smoke 5 개 세트 (commit bda89b0, 21 분) — **처음으로 끝까지 정상 종료**. 새 팩 5 개 SHA256 통과, DepthLM 세트마다 48 점(파싱 실패 0·잘린 답 0,
+  0.41–0.88 s/점, 프로세스 1 개; DDAD 가 가장 느림 = 큰 입력), dense 4 종 × 5 세트 × 3 장(리사이즈 0, 0.1–0.45 s/장), 채점표·검증표 ①②③ 출력.
+  수치는 세트마다 첫 1–3 장이라 판단 근거 아님. 다음: 파일럿 `all ibims1 nuscenes` (예상 2.5–3 h, 이전 depthlm 작업의 iBims-1 결과가 track_a 에 남아 있으면 더 짧음).
+- 2026-10-02 13:52–16:52 KST H200 파일럿 `all ibims1 nuscenes` (commit bda89b0, 3 h) — 정상 종료. 공통 점 iBims-1 9,750 (제외 250), nuScenes 9,816 (제외 184) = 기하 예상과 같음. 파싱 실패·잘린 답 0.
+  · DepthLM 속도: 프로세스 2 개, iBims-1 0.80 s/점·프로세스(61 분), nuScenes 1.0 s/점·프로세스(70 분), GPU 100 %, 80 GB.
+  · baseline δ1 vs DepthVLM 표 2: DAv2 0.887/0.168, UniDepthV2 0.941/0.872, Metric3Dv2 iBims-1 0.726 = **6/8 정확히 일치**.
+    다름: Metric3Dv2 nuScenes 0.847 (표 0.747), Depth Pro iBims-1 0.829 (0.880)·nuScenes 0.482 (0.389) → 원인 확인 필요 (F-9).
+  · DepthLM δ1: iBims-1 원답 0.810 / 변환 0.755, nuScenes 원답 0.823 / 변환 0.735.
+    **DepthVLM 표 1(0.754·0.736) = 변환값과 일치, DepthLM 표 1 nuScenes(0.819) = 원답과 일치** (iBims-1 0.870 은 DepthLM 자체 8,192 점·다른 GT).
+  · z 변환 확인 ③: 원답/GT 가 광선 계수와 함께 커지지 않음(iBims-1 0.94→0.98, nuScenes 0.98→0.92), 변환값/GT 는 가장자리로 갈수록 작아짐(0.93→0.81, 0.97→0.65)
+    → **DepthLM 원답은 유클리드가 아니라 z 에 가깝다** = 규칙 1(유클리드 가정)과 다름 → 사용자 결정 대기 (F-10). 두 값 모두 원자료에 있어 재실행 불필요.
+  · ② 공통 점 vs 전체 GT: iBims-1 은 거의 같음. nuScenes AbsRel 은 공통 점이 크게 높음(UniDepthV2 0.520 vs 0.312 등)·CI 넓음 = 소수 근거리 GT 꼬리, Depth Pro nuScenes 전체 GT RMSE 28.4 (공통 점 9.6) = 원거리 이상치. 본 결과 해석 때 다룸.
+- 2026-10-02 22:10 파일럿 원자료 분석 (zip johnhong06_874, 공통 점 5 모델):
+  · DepthLM 은 먼 거리를 체계적으로 짧게 답한다 — iBims-1 예측/GT 중앙값 0–2 m 0.94 → 6–10 m 0.73 → 10–25 m 0.63 (원답도 0.65), RMSE 0.33 → 6.6 m.
+    다른 모델은 0.92–1.00. RMSE 큰 이미지 상위 10 % 가 DepthLM 제곱오차의 71 % (factory_04·03, lectureroom_09 = 넓은 장면). nuScenes 도 60–80 m 에서 0.77.
+  · nuScenes dense 모델의 큰 RMSE 는 소수 이미지(상위 10 % 가 UniDepthV2 81 %·Metric3Dv2 89 %). 근거리 GT(≈7 m)를 모든 모델이 ≈33 m 로 보는 점이 23–38 개
+    → 모델 문제가 아니라 GT 투영 어긋남 후보(F-2: ego pose 보정 없음, 측·후방 카메라). Metric3Dv2 는 그 점들을 141 m(상한 근처)로 예측해 RMSE 가 커짐.
+  · 정렬 확인: 겹침 그림(iBims-1 Metric3Dv2, nuScenes UniDepthV2) 경계 어긋남 없음 → 검증 항목 통과.
+- 2026-10-02 17:04–21:54 KST H200 본 실험 `all nyuv2 ddad diode_outdoor` (commit bda89b0, 4 h 50 m) — 정상 종료. 공통 점 NYUv2 9,713 / DDAD 9,920 / DIODE 9,756 (기하 예상과 같음), 파싱 실패 0.
+  · DepthLM 속도(프로세스당): NYUv2 0.76, DDAD 1.51, DIODE 0.87 s/점.
+  · **이 작업의 표에 iBims-1·nuScenes 가 없음** = 파일럿 결과가 /app/output/vdr/track_a 에 남아 있지 않았다(작업 사이에 비워지거나 옮겨짐). → 최종 5 개 세트 표는 두 zip(874·875)의 parquet 을 로컬에서 합쳐 score.py 로 만든다.
+  · DepthLM δ1 재현: DDAD 원답 0.680 (DepthLM 표 1 0.670) / 변환 0.651 (DepthVLM 표 1 0.654) — iBims-1·nuScenes 와 같은 패턴.
+    NYUv2 원답 0.816 (DepthLM 0.799) / 변환 0.673 — DepthVLM 표 1 0.866 과는 어느 쪽도 안 맞음(원인 미확인, F-11).
+  · z 변환 확인 ③ 은 데이터셋마다 다름: DDAD·nuScenes·iBims-1 은 원답/GT 가 광선 계수와 거의 무관(z 에 가까움), NYUv2·DIODE 는 원답/GT 가 광선 계수와 함께 커지고 변환값/GT 가 평평(유클리드에 가까움).
+    DepthLM 공식 큐레이션(D-6: 주행 세트는 z 라벨, NYU 등은 유클리드)과 맞는 방향 → F-10 결정에 반영.
+- 2026-10-02 23:xx **정정 — 앞선 'GT 이상 점이 nuScenes dense RMSE 를 키운다'는 해석은 틀렸다**: 다섯 모델 모두 GT 의 2.5 배 넘게 예측한 점은 17 / 9,816 개이고,
+  빼도 RMSE 변화는 0.01–0.03 m. 이미지로 보면 자기 차 범퍼 경계(GT 0.21 m), 가는 표지판(GT 7.2 m, 모델은 뒤 벽 32–41 m), 기둥 옆 잔디(GT 2.0 m, 투영 어긋남 의심) — 섞여 있다.
+  nuScenes dense 모델의 큰 RMSE 는 각 모델 자신의 큰 오차(꼬리) 때문. DIODE 'GT 품질' 도 근거 없음: Metric3Dv2 가 δ1 0.85 를 내므로 GT 는 쓸 만하고,
+  나머지 모델의 낮은 δ1 은 모델별 배율 편향(DepthLM 약 0.70 배, UniDepthV2 AbsRel 1.25 = 과대) 쪽이 유력 — 본 실험 zip 으로 확인.

@@ -14,7 +14,7 @@ DepthLM 은 δ1 만 보고했다. 같은 조건에서 **RMSE / AbsRel / δ1** �
 
 ## 반드시 지킬 규칙 (사용자 지정 — 바꿔야 하면 진행하지 말고 먼저 보고)
 
-1. 깊이 = z-depth. DepthLM 답 d(유클리드)는 z = d / sqrt(1 + ((u−cx)/fx)² + ((v−cy)/fy)²), 원본 좌표 + 원본 intrinsics.
+1. 깊이 = z-depth. DepthLM 답은 DepthLM 공식 코드의 데이터셋별 GT 정의를 따른다 (2026-10-02 사용자 개정, NOTES D-17): nuScenes·DDAD 는 그대로 z, 나머지는 유클리드로 보고 z = d / sqrt(1 + ((u−cx)/fx)² + ((v−cy)/fy)²) (원본 좌표 + 원본 intrinsics). 부록: 전부 변환·전부 그대로 (`score.py --depthlm`).
 2. 평가 좌표계는 GT 원본 해상도 하나. dense 예측은 이 크기로 리사이즈한 뒤 같은 픽셀 값을 뽑는다.
 3. DepthLM 질의는 12B 의 통일 초점 750, 원본 좌표를 같은 배율로 옮겨 화살표를 그린다.
 4. valid mask 와 데이터셋별 min/max cap 은 모든 모델에 동일 (벤치 `sample_points.py` 의 `DATASET_CONFIGS`, DIODE 는 0.05–80 m).
