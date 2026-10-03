@@ -370,3 +370,12 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   ibims1_core_raw.zip 을 받아 공식 sha512 일치 시 edges 만 풀기(실패하면 경고만, iBims-1 경계 집계만 빠짐). 로컬 시험 15 초, 86 장, 재실행 시 건너뜀. Track A 보조 집계는 저장소의 bench/boundary_*.parquet 를 써서 영향 없음.
 - 2026-10-03 H200 Track B 본 실행 1 차 (commit e508ca9) — **실패**: 데이터 팩 5 개는 정상, 공식 저장소 받기에서 Metric3D 압축본(GitHub codeload)이 읽기 시간 초과(TimeoutError) → fetch_ext 가 의도대로 멈춤.
   일시적 네트워크 문제. 수정: fetch_ext.sh 가 30 초 쉬고 3 번까지 다시 받기, 읽기 제한 120 → 300 초. 로컬 시험: 정상 받기 4 개 통과, 없는 커밋은 3 번 시도 뒤 종료 코드 1.
+- 2026-10-03 11:07–12:01 KST H200 **Track B 본 실행** `trackb` 5 개 세트 (commit 6d116a6, 54 분) — 정상 종료. iBims-1 경계 지도 86 장 공식 배포본 sha512 일치, DepthVLM flash_attention_2.
+  · 검증(공식 dense 방식 vs README dense 표): DepthVLM iBims-1 0.910 / nuScenes 0.838 = **일치**, UniDepthV2 0.943 / 0.869 (0.941 / 0.868), Metric3Dv2 0.730 / 0.844 (0.724 / 0.843) = 일치,
+    Depth Pro 0.829 / 0.478 (0.879 / 0.379) = F-9 와 같은 원인(논문은 GT 초점). Metric3Dv2 nuScenes 는 dense 로는 맞는데 Track A sparse 표 2 와는 0.10 차 → 표 2 sparse 쪽 설정 차이로 보임(F-9 보강).
+  · dense 4 종 수치는 Track A 의 전체 GT 통계(densestat)와 같음 (예: DAv2 iBims-1 0.579 / 0.887).
+  · 결과 요지: 실내 DepthVLM 평균 RMSE 0.547 · δ1 0.916 으로 1 위 (NYUv2 RMSE 0.453 vs 0.88–0.98). iBims-1 은 UniDepthV2 가 1 위(0.487 / 0.941), DepthVLM 은 원거리(1.24 vs 0.88)·경계(δ1 −0.20)·SILog(11.1 vs 5.9–7.3)에서 약함.
+    실외 DDAD·nuScenes 는 DepthVLM RMSE 1 위지만 둘 다 학습 데이터(†). zero-shot DIODE 는 Metric3Dv2 압도(3.84 / 0.859), DepthVLM 7.58 / 0.402. Depth Pro 는 극단 예측으로 RMSE 폭증(DIODE 88.8, DDAD 32.9).
+- 2026-10-03 README 결과 표 재구성 (사용자: 가독성): 공식 저장소 README 양식 참고(UniDepth·DepthVLM = 지표 하나에 데이터셋을 열로, Metric3D = 데이터셋별 지표 묶음, 1 위 굵게).
+  트랙마다 ① 한눈에 보기(실내·실외 평균 + 평균 순위 = 데이터셋×지표 순위 평균) ② 지표별 상세(RMSE·AbsRel·δ1 표 각각, 데이터셋 + 도메인 평균 열, 1 위 굵게·2 위 밑줄) ③ 보조 지표(Track B; Track A 는 zip 후).
+  값은 두 H200 로그의 점추정. Track A DepthLM DDAD 는 '답 그대로' 규칙이라 원자료(zip) 필요 → '대기'. 표는 scratchpad 생성 스크립트로 만들어 순위·굵게 표시를 손으로 하지 않음.
