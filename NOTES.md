@@ -368,3 +368,5 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   dense 4 종 값은 Track A smoke 의 전체 GT 통계와 같음(예: DAv2 nuScenes RMSE 10.582) = 두 경로 일치. 검증표 값은 3 장이라 판단 근거 아님.
   **발견: 경계/내부 표가 비었다** — 데이터 팩에는 추론에 쓰는 파일만 넣어 iBims-1 공식 경계 지도(edges/)가 없음. → `prep/ibims1_edges.py`: trackb 에서 공식 배포처(TUM dataserv)
   ibims1_core_raw.zip 을 받아 공식 sha512 일치 시 edges 만 풀기(실패하면 경고만, iBims-1 경계 집계만 빠짐). 로컬 시험 15 초, 86 장, 재실행 시 건너뜀. Track A 보조 집계는 저장소의 bench/boundary_*.parquet 를 써서 영향 없음.
+- 2026-10-03 H200 Track B 본 실행 1 차 (commit e508ca9) — **실패**: 데이터 팩 5 개는 정상, 공식 저장소 받기에서 Metric3D 압축본(GitHub codeload)이 읽기 시간 초과(TimeoutError) → fetch_ext 가 의도대로 멈춤.
+  일시적 네트워크 문제. 수정: fetch_ext.sh 가 30 초 쉬고 3 번까지 다시 받기, 읽기 제한 120 → 300 초. 로컬 시험: 정상 받기 4 개 통과, 없는 커밋은 3 번 시도 뒤 종료 코드 1.
