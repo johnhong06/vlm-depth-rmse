@@ -17,29 +17,29 @@
 - [x] 푸시 전 최종 점검 (정적·동적·팩 대조 + 독립 검토 에이전트) — 아래 실행 로그 2026-10-01 20:10
 - [x] 드라이브 `h200_trackA`: /app/data/HJ 에 새로 넣을 것만 (Track A 팩 6 개 + README_ADMIN, 6.03 GiB), 조각 8 개 SHA256 일치. DepthLM 가중치는 /app/data/HJ 의 9/23 팩을 쓴다
 - [x] (사용자) 커밋·푸시 → H200 `bash run.sh env` 제출 / 관리자에게 `h200_trackA` 전달 (서버 반영 대기)
-- [ ] (사용자) 추가 커밋·푸시 → H200 `bash run.sh depthlm ibims1` — 새 팩 없이 9/23 팩의 iBims-1 RGB 로 DepthLM 먼저 (D-15)
+- [x] (사용자) 추가 커밋·푸시 → H200 `bash run.sh depthlm ibims1` — 새 팩 없이 9/23 팩의 iBims-1 RGB 로 DepthLM 먼저 (D-15) → 멈춤(F-8) 뒤 smoke·파일럿으로 대체
 - [x] 문서: README 한국어(humanize-korean 윤문)·`docs/PROTOCOL.md` 8 절 (`docs/protocol.md` 대체, D-16) — 아래 실행 로그 21:12
 - [x] (사용자) 문서 변경 커밋·푸시 (c8a5945)
 - [x] H200 `bash run.sh env` 통과 (commit 174141d, 서버 11:14–11:30) — 모델 5 종 환경·공식 저장소·가중치·로딩, 로컬 사전 점검과 같은 값 (실행 로그, F-6)
 - [x] (사용자 확인) Metric3Dv2 '도메인 정보' — 사용자 확정(10-01): 공식 추론 설정 그대로, 표기는 '미사용', 따로 설명 없음 (D-13)
 
 ### Track A — 검증 (본 실험 전에 통과)
-- [ ] H200 `bash run.sh smoke`
-- [ ] 파일럿 `depthlm ibims1 nuscenes` + `dense all ibims1 nuscenes`
-- [ ] DepthLM δ1: 변환 전 → 후, DepthLM 표 1·DepthVLM 표 1 범위 비교 (`checks.py`)
-- [ ] baseline δ1: DepthVLM 표 2 sparse (nuScenes·iBims-1) — iBims-1 로컬 사전 점검 완료(아래 로그): DAv2 0.887·UniDepthV2 0.941·Metric3Dv2 0.726 = 표 2 와 같음,
+- [x] H200 `bash run.sh smoke` (10-02, commit bda89b0)
+- [x] 파일럿 `all ibims1 nuscenes` (10-02, zip 874)
+- [x] DepthLM δ1: 원답 = DepthLM 표 1 (nuScenes 0.823/0.819, DDAD 0.680/0.670), 변환값 = DepthVLM 표 1 (iBims-1 0.755/0.754, nuScenes 0.735/0.736, DDAD 0.651/0.654). NYUv2 는 어느 쪽도 안 맞음(F-11)
+- [x] baseline δ1: DepthVLM 표 2 sparse — 6/8 일치, 다른 3 칸은 F-9 (nuScenes·iBims-1) — iBims-1 로컬 사전 점검 완료(아래 로그): DAv2 0.887·UniDepthV2 0.941·Metric3Dv2 0.726 = 표 2 와 같음,
       Depth Pro 0.829 (표 2 0.880, UniDepthV2 논문 dense 0.823). nuScenes 는 H200 파일럿에서
 - [x] Metric3Dv2 NYUv2 RMS 0.251 (`m3d_nyu.py`, 654 장, 로컬): **벤치마크 방식 + rawDepths GT → RMSE 0.253·AbsRel 0.063·δ1 0.975 (논문 0.251·0.063·0.975)** — 통과.
       depths(보정) GT 로는 0.345·0.073·0.958 → 논문은 raw 깊이로 평가한 것으로 보인다. Track A 와 같은 hub 경로는 0.261·0.066·0.974.
-- [ ] 샘플링 대표성: 공통 점 RMSE vs 전체 valid GT RMSE (`densestat_*`)
-- [ ] z 변환 방향: 중심 z ≈ d, 가장자리 z < d
-- [ ] 정렬: `overlay/` 그림 검토
+- [x] 샘플링 대표성: 공통 점 RMSE vs 전체 valid GT RMSE (`densestat_*`) — tables/track_a_checks.md ②
+- [x] z 변환 방향 (F-10 → D-17)
+- [x] 정렬: `overlay/` 그림 검토 — 파일럿 + 875·878 (NYUv2·DDAD·DIODE, DepthVLM 5 세트) 경계 어긋남 없음
 
 ### Track A — 본 실험
-- [ ] 5 개 데이터셋 × 5 모델 → `tables/track_a.md` (주표 + 유클리드 부록)
+- [x] 5 개 데이터셋 × 5 모델 → `tables/track_a.md` (주표 + 유클리드 부록) + 부록 converted·raw + breakdown + checks (2026-10-04, zip 874 + 875)
 
 ### Track B (Track A 다음)
-- [ ] 설계 재확인 후 DepthVLM-4B (가중치 드라이브에 있음) 등
+- [x] D-19 설계 → H200 `trackb` 5 세트 (zip 878) → `tables/track_b.md` (2026-10-04)
 
 ### 이전 단계 기록 (재설계 전, 참고)
 - 2026-10-01 오전: DepthVLM 비교·6 개 세트(SUN RGB-D·ETH3D 포함) 설계로 준비 → D-11 에서 Track A 재설계. F-1(ETH3D 정렬)은 Track A 에 해당 없음.
@@ -388,3 +388,14 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - 2026-10-04 iBims-1 DepthLM 정의 정정 (D-17 정정): 사용자 질문 'DepthLM 논문 iBims-1 δ1 과 왜 다른가' → 공식 예제와 비교.
   처음 답한 '샘플링 차이(먼 점 비중)' 가설은 거리 분포 비교로 기각. 대신 공식 예제 라벨이 z 임을 확인 → score.py Z_SETS 에 ibims1, CLAUDE.md 규칙 1·PROTOCOL 4.1·README 반영.
   파일럿 zip(874) 원자료로 score.py 재계산 1.261 / 0.141 / 0.810 확인. README Track A 표는 같은 생성 스크립트로 다시 만듦(iBims-1·실내 평균·순위만 바뀜).
+- 2026-10-04 본 실험 결과 수신·최종 표 (zip 875 = Track A `all nyuv2 ddad diode_outdoor`, 878 = Track B `trackb`; 874 = 파일럿):
+  · 원자료 완비: 875 = DepthLM 3 세트 × 2 조각 + dense 4 종 × 3 세트 + densestat, 878 = 이미지별 통계 25 개(5 모델 × 5 세트) + 겹침 그림 125 장.
+  · Track A 최종 = 874 + 875 parquet 을 로컬에서 합쳐 score.py (official·converted·raw), breakdown.py, checks.py → `tables/` (저장소에 포함, CI 포함).
+    DepthLM DDAD (공식 = 답 그대로 z): RMSE 13.69 / AbsRel 0.253 / δ1 0.680 (변환 시 δ1 0.651). DDAD RMSE 3 위 (Metric3Dv2† 8.86, UniDepthV2 9.63).
+    실외 평균: DepthLM RMSE 10.23·AbsRel 0.351 로 2 위, δ1 0.586 은 4 위, 평균 순위 2.6 (2 위). 단 실외 강세의 큰 몫은 nuScenes(†, RMSE 1 위). zero-shot 실외(DDAD·DIODE)는 둘 다 RMSE 3 위.
+    보조: DepthLM SILog 실내 15.7 (다른 모델 8.7–9.5), 원거리 RMSE 실내 1.88 (1.09–1.41), 경계 δ1 0.589 (0.726–0.781) — 모두 꼴찌. 실외 log-RMSE 0.496 은 3 위.
+  · Track B: 878 통계로 로컬 score_dense.py 재계산 = 서버 표와 같음. README 값은 반올림 마지막 자리만 바뀜(예전 표는 로그의 반올림 값으로 만들었음).
+  · README 표 생성 스크립트를 저장소로 옮김 (`eval/readme_tables.py`, csv 만 읽음). scratchpad 의 이전 생성기가 지워져 다시 씀. 순위는 표시 자릿수에서 같으면 같은 순위(표에서 확인 가능하게).
+    Track B 로 회귀 확인: 이전 README 와 순위·굵게·밑줄 같음.
+  · checks.py 의 DepthLM 원답 라벨 'raw (Euclidean answer)' → 'raw (answer as is)' (D-17 이후 세트마다 정의가 달라서).
+  · 겹침 그림: 정렬 이상 없음. DepthVLM 예측 맵은 다른 모델보다 흐리고 격자 무늬가 있고, DIODE 에서 먼 건물을 가깝게 본다(δ1 0.40 과 맞는 방향).

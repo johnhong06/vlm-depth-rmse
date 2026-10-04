@@ -36,7 +36,7 @@ for (m, ds), g in px.groupby(["model", "dataset"], sort=False):
     ref = ", ".join(f"{k} {v:.3f}" for k, v in REF.get((m, ds), {}).items())
     for col in (["pred_raw", "pred"] if m == "DepthLM-12B" else ["pred"]):
         hit = d1(g[col], g.gt_z)
-        name = {"pred_raw": "raw (Euclidean answer)", "pred": "z-converted" if m == "DepthLM-12B" else "z"}[col]
+        name = {"pred_raw": "raw (answer as is)", "pred": "z-converted" if m == "DepthLM-12B" else "z"}[col]
         print(f"| {m} | {ds} | {name} | {hit.mean():.3f} | {hit.groupby(g.image_id).mean().mean():.3f} | {len(g)} | {ref} |")
 
 ds_files = [f for f in files if "/densestat_" in f]
