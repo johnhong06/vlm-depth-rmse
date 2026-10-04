@@ -110,7 +110,8 @@ DepthLM은 "카메라에서 얼마나 떨어져 있나"에 숫자로 답한다. 
 | 데이터셋 | DepthLM 공식 GT 정의 | 답 처리 |
 |---|---|---|
 | NuScenes, DDAD | z (공식 데이터 정리 코드 `curate_nuscenes_*.py`의 `points_cam[2]`, `curate_ddad.py`의 깊이맵) | 그대로 z로 쓴다 |
-| iBims-1, NYUv2 | 유클리드 거리 (공식 예제·정리 코드) | 아래 식으로 z로 바꾼다 |
+| iBims-1 | z (공식 예제 `examples/ibims1/ibims1_val.jsonl`의 라벨이 GT 깊이 지도 값과 10,000점 모두 같다. 정리 코드는 공개되지 않았다) | 그대로 z로 쓴다 |
+| NYUv2 | 유클리드 거리 (공식 정리 코드 `curate_NYU.py`가 z에서 유클리드 거리를 계산해 라벨로 쓴다) | 아래 식으로 z로 바꾼다 |
 | DIODE Outdoor | 공식 정의 없음 → 질문의 기본 뜻(카메라에서의 거리) = 유클리드 | 아래 식으로 z로 바꾼다 |
 
 ```
@@ -122,10 +123,12 @@ z = d / sqrt(1 + ((u − cx)/fx)² + ((v − cy)/fy)²)
 
 이유: 정의가 섞이면 가장자리·원거리에서 체계적 편향이 생겨 RMSE가 부풀려진다.
 
-개정 이유: 원래 규칙은 DepthLM 답을 모두 유클리드로 보고 변환했다. 그런데 DepthLM은 데이터셋마다 다른 정의로 학습했다(주행 데이터셋은 z 라벨, 나머지는 유클리드 라벨).
+개정 이유: 원래 규칙은 DepthLM 답을 모두 유클리드로 보고 변환했다. 그런데 DepthLM은 데이터셋마다 다른 정의로 학습·평가했다(주행 데이터셋과 iBims-1은 z 라벨, NYU 등은 유클리드 라벨).
 dense 모델은 자기가 학습한 정의(z)로 평가받으므로, DepthLM도 자기가 배운 정의로 평가해야 공정하다. DepthLM 논문도 이 방식으로 평가했다(우리 답 그대로의 δ1이 DepthLM 논문 표 1과 맞음: NuScenes 0.823 vs 0.819, DDAD 0.680 vs 0.670).
 데이터셋마다 무엇을 쓸지는 우리 결과(GT와의 비교)가 아니라 공식 코드의 정의로 미리 정했다. GT를 보고 유리한 쪽을 고르면 정답을 보고 점수를 고르는 셈이 되기 때문이다.
-그래서 실측으로는 답이 z에 가까웠던 iBims-1도 공식 정의(유클리드)대로 변환한다. 파일럿 실측(검증 ③, NOTES F-10)은 이 결정의 계기일 뿐 데이터셋별 선택 기준이 아니다.
+파일럿 실측(검증 ③, NOTES F-10)은 이 결정의 계기일 뿐 데이터셋별 선택 기준이 아니다.
+
+정정(2026-10-04): 처음 개정 때는 iBims-1을 유클리드로 분류해 변환했다. 공식 예제 라벨을 GT 깊이 지도와 같은 좌표에서 대조해 보니 z와 10,000점 모두 같고 유클리드와는 0.8%만 같아서, iBims-1을 z로 고쳤다. 기준은 그대로 공식 정의이고, 분류만 바로잡았다(NOTES D-17).
 
 ### 4.2 기준 좌표계 (규칙 2)
 
@@ -210,7 +213,7 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 
 - 논문 수치는 표 번호와 행 이름까지 원문과 대조했다(DepthLM arXiv:2509.25413 v2, DepthVLM arXiv:2605.15876 v3, Metric3D v2 arXiv:2404.15506 v4).
 - DepthLM 논문 표 2에도 pure vision 모델 수치가 있지만 UniDepthV2·Depth Pro 논문에서 옮겨 온 값이다. baseline 재현 기준으로는 DepthVLM 표 2만 쓴다.
-- DepthLM 공식 학습 데이터 정리 코드에서 NuScenes·DDAD 라벨은 z-depth이고 나머지 데이터셋은 유클리드 거리다(NOTES D-6). 이 두 세트에서 DepthLM 원답이 어느 정의인지는 첫째와 다섯째 항목으로 파일럿에서 확인한다.
+- DepthLM 공식 학습 데이터 정리 코드에서 NuScenes·DDAD 라벨은 z-depth이고 나머지 데이터셋은 유클리드 거리다(NOTES D-6). iBims-1 공식 예제 라벨도 z다(4.1절 정정). 이 두 세트에서 DepthLM 원답이 어느 정의인지는 첫째와 다섯째 항목으로 파일럿에서 확인한다.
 
 ## 6. 데이터셋별 설정값
 
@@ -240,7 +243,7 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 | `fx`, `fy`, `cx`, `cy` | float | 원본 해상도 intrinsics |
 | `gt_z` | float | GT z-depth (m), jsonl 값 그대로 |
 | `pred` | float | z-depth 예측 (m). DepthLM은 변환한 값이고, 답이 없으면 NaN |
-| `pred_raw` | float | DepthLM은 변환 전 원답(유클리드 거리), dense 모델은 `pred`와 같은 값 |
+| `pred_raw` | float | DepthLM은 변환 전 원답, dense 모델은 `pred`와 같은 값 |
 | `model` | str | `DepthLM-12B`, `DAv2-metric-L`, `UniDepthV2-L`, `Metric3Dv2-L`, `DepthPro` |
 
 DepthLM 파일에는 열이 두 개 더 있다. `note`는 점이 빠진 이유(`no_marker` = 마커를 그릴 수 없는 점, `parse_fail` = 답 파싱 실패)이고 `text`는 모델이 생성한 원문이다.

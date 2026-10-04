@@ -3,7 +3,7 @@
   주 결과 = z-depth 공간 (pred vs gt_z). 부록 = 유클리드 공간 RMSE (둘 다 광선 계수를 곱함 — AbsRel·δ1 은 비율이라 공간과 무관, 규칙 8).
   주 지표 = 데이터셋 안 모든 픽셀 pooled, 보조 = 이미지별 계산 후 평균 (규칙 6). 도메인 행 = 그 도메인 데이터셋 값의 평균 (실내/실외만, 규칙 5).
   bootstrap: 데이터셋마다 이미지를 복원추출(B 회, 시드 0), 도메인 값은 같은 회차의 데이터셋 값 평균 (규칙 7).
-  DepthLM 답의 깊이 정의 (규칙 1, NOTES D-17): --depthlm official(주 결과) = DepthLM 공식 데이터 정리 코드가 z 라벨을 쓰는 세트(Z_SETS)는 답을 그대로 z 로,
+  DepthLM 답의 깊이 정의 (규칙 1, NOTES D-17): --depthlm official(주 결과) = DepthLM 공식 데이터 정리 코드·예제가 z 라벨을 쓰는 세트(Z_SETS)는 답을 그대로 z 로,
   나머지는 유클리드로 보고 z 로 변환. converted(부록 a, DepthVLM 과 같은 방식) = 전부 변환, raw(부록 b) = 전부 그대로.
 사용: python eval/score.py results/track_a/*.parquet --models DepthLM-12B UniDepthV2-L ... --out tables/track_a
 """
@@ -28,7 +28,7 @@ TRAINED = {("Metric3Dv2-L", "ddad"): "trained on DDAD", ("DepthLM-12B", "nuscene
            ("DepthVLM-4B", "ddad"): "trained on DDAD (other scenes)", ("DepthVLM-4B", "nuscenes"): "trained on nuScenes (other scenes)"}
 CEILING = {("DAv2-metric-L", "ibims1"): "model max 20 m < cap 25 m", ("DAv2-metric-L", "ddad"): "model max 80 m < cap 120 m"}
 NAMES = ["rmse", "absrel", "d1", "rmse_euc"]
-Z_SETS = {"nuscenes", "ddad"}  # DepthLM_Official curate_nuscenes_*.py (points_cam[2])·curate_ddad.py (dgp 깊이맵) = z 라벨. 나머지는 유클리드 라벨이거나 공식 정의 없음
+Z_SETS = {"nuscenes", "ddad", "ibims1"}  # z 라벨: curate_nuscenes_*.py (points_cam[2])·curate_ddad.py (dgp 깊이맵)·공식 예제 examples/ibims1 (GT 깊이 지도 값 그대로, 10,000/10,000 점). NYUv2 = 유클리드 (curate_NYU.py), DIODE = 공식 정의 없음
 
 
 def depthlm_answers(d, mode):
