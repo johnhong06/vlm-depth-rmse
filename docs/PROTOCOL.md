@@ -204,7 +204,7 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 
 | 항목 | 방법 | 참고 수치와 출처 | 판단 기준 |
 |---|---|---|---|
-| DepthLM-12B δ1 재현 | z 변환 전 값(`pred_raw`)으로 먼저 확인한 뒤 변환값(`pred`)으로 확인한다. pooled와 이미지별 둘 다 (`eval/checks.py` ①) | DepthLM 논문 표 1 "Ours - Pixtral (12b)" 행: iBims-1 0.870, NYUv2 0.799, DDAD 0.670, NuScenes 0.819 (데이터셋마다 무작위 8,192 샘플). DepthVLM 논문 표 1 "DepthLM-12B" 행: iBims-1 0.754, NYUv2 0.866, DDAD 0.654, NuScenes 0.736 | 두 논문은 샘플링이 달라 값이 다르다. 그 범위에 근접하는지로 본다. DIODE Outdoor는 참고 수치가 없다 |
+| DepthLM-12B δ1 재현 | z 변환 전 값(`pred_raw`)으로 먼저 확인한 뒤 변환값(`pred`)으로 확인한다. pooled와 이미지별 둘 다 (`eval/checks.py` ①) | DepthLM 논문 표 1 "Ours - Pixtral (12b)" 행: iBims-1 0.870, NYUv2 0.799, DDAD 0.670, NuScenes 0.819 (데이터셋마다 무작위 8,192 샘플). DepthVLM 논문 표 1 "DepthLM-12B" 행: iBims-1 0.754, NYUv2 0.866, DDAD 0.654, NuScenes 0.736 | 두 논문은 샘플링이 달라 값이 다르다. 그 범위에 근접하는지로 본다. DIODE Outdoor는 참고 수치가 없다. NYUv2는 DepthLM 공식 정리 코드(`curate_NYU.py`)가 SUN RGB-D 깊이 png를 10000으로 나눠(공식 툴박스 기준은 8000) GT가 실제의 0.8배다. 우리 답을 GT×0.8과 비교하면 0.865로 DepthVLM 표 1(0.866)과 맞는다(NOTES F-11) |
 | Baseline δ1 재현 | 같은 스크립트 | DepthVLM 논문 표 2 (VLM 평가와 같은 샘플 픽셀, sparse), NuScenes / iBims-1: Depth Anything V2 0.168 / 0.887, UniDepthV2 0.872 / 0.941, Metric3Dv2 0.747 / 0.726, Depth Pro 0.389 / 0.880 | 근접 여부 |
 | RMSE 코드 검증 | Metric3Dv2 ViT-L을 NYUv2 공식 테스트 split 654장(`labeled.mat`, 640×480)과 표준 평가 마스크(Eigen crop, GT 0.1–10 m)로 따로 돌린다. 논문 벤치마크 코드의 전처리를 따르고 이미지별 평균을 낸다 (`eval/m3d_nyu.py`) | Metric3D v2 논문 표 1, NYUv2 "Ours ViT-L CSTM_label ZS" 행: RMS 0.251, AbsRel 0.063, δ1 0.975 | 근접 여부. 논문이 GT로 `depths`(채운 깊이)와 `rawDepths` 중 무엇을 썼는지 밝히지 않아 둘 다 계산한다 |
 | 샘플링 대표성 | 같은 dense 예측으로 공통 픽셀(sparse) RMSE와 이미지 전체 valid GT(dense) RMSE를 비교한다. dense 값은 pooled와 이미지 균등 평균 둘 다 (`densestat_*`, `checks.py` ②) | – | 차이를 보고한다 |
