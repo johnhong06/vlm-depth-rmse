@@ -215,6 +215,8 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 - DepthLM 논문 표 2에도 pure vision 모델 수치가 있지만 UniDepthV2·Depth Pro 논문에서 옮겨 온 값이다. baseline 재현 기준으로는 DepthVLM 표 2만 쓴다.
 - DepthLM 공식 학습 데이터 정리 코드에서 NuScenes·DDAD 라벨은 z-depth이고 나머지 데이터셋은 유클리드 거리다(NOTES D-6). iBims-1 공식 예제 라벨도 z다(4.1절 정정). 이 두 세트에서 DepthLM 원답이 어느 정의인지는 첫째와 다섯째 항목으로 파일럿에서 확인한다.
 
+> 2026-10-08: Depth Pro 는 아래 설정대로 돌렸지만 결과 표(`tables/`, README)에서는 뺐다 (NOTES D-23). 원자료에는 남아 있다.
+
 ## 6. 데이터셋별 설정값
 
 | 도메인 | 데이터셋 | 분할 | min cap (m) | max cap (m) | 추가 valid mask | 이미지 수 | 이미지당 픽셀 | 총 픽셀 | seed |

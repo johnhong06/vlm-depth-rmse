@@ -228,6 +228,13 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - GT 초점거리: 각 모델은 논문·공식 코드대로 (쓰도록 설계된 모델에만 준다, D-13). 이것을 공정성 문제로 다루지 않는다. UniDepthV2+K·Depth Pro+f 는 참고용 부록 조건, 주장에 쓰지 않는다.
 - 'SILog 만 유독 나쁜가' 판단은 대체적인 경향이면 충분 (모든 모델보다 나쁠 필요 없음).
 
+### D-23 (2026-10-08) Depth Pro 를 결과 표에서 뺀다 (사용자: "DepthPro 는 뭔가 이상하다. 표에서 다 빼자")
+- 대상: tables/ 의 track_a·track_a_breakdown·track_b(.csv·.md)·track_a_depthlm_converted·raw.md, README 결과 표·비교 모델 표. 원자료(874·875·878)와 실행 코드는 그대로 둔다.
+- 남은 모델 값은 바뀌지 않는다: 공통 점은 DepthLM 이 정하고 bootstrap 재표본은 모델 목록과 무관 → 다시 만든 csv 의 남은 행이 이전과 차이 0.0 (확인함). 순위·굵게·밑줄·평균 순위만 바뀐다.
+- 그동안 본 이상한 점(README 에 한 문단): 예측을 자르지 않아 0.08 % 픽셀이 10⁴ m → 실외 RMSE 지배(DIODE 88.8, 80 m 로 자르면 9.25), DepthVLM 표 2 의 수치는 GT 초점을 넣은 값(F-9),
+  공개 가중치는 재학습한 참조 구현이고 학습 데이터 미공개(D-12).
+- 그대로 둔 것: track_a_checks.md(논문 재현 확인 기록), docs/VLM_WEAKNESS.md(pure vision 4 종 중앙값 기준 — 빼려면 비·CI 를 다시 계산해야 함, 사용자 확인 대기).
+
 ## 확인이 필요한 발견
 
 - **F-1 ETH3D 정렬 — 확인됨 (2026-10-01)**: 벤치 RGB 는 보정본(`dslr_images_undistorted`, 약 6204×4135, PINHOLE)인데

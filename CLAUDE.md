@@ -9,7 +9,7 @@ DepthLM 은 δ1 만 보고했다. 같은 조건에서 **RMSE / AbsRel / δ1** �
 원래 RMSE 비교는 한 데이터셋에 fine-tune 한 뒤 하지만 현실적으로 불가하므로, 비교 모델 대부분이 보지 않은 실내·실외 데이터셋에서 잰다. 범위는 측정까지.
 
 - 평가: 공통 샘플 픽셀(sparse). DepthLM 은 그 픽셀에만 질의, dense 모델은 예측 맵(GT 원본 해상도로 리사이즈)에서 같은 위치 값.
-- 모델: DepthLM-12B / DAv2-metric (L) / UniDepthV2 (L) / Metric3Dv2 (ViT-L) / Depth Pro — 공식 추론 설정 그대로 (NOTES D-13).
+- 모델: DepthLM-12B / DAv2-metric (L) / UniDepthV2 (L) / Metric3Dv2 (ViT-L) / Depth Pro — 공식 추론 설정 그대로 (NOTES D-13). Depth Pro 는 돌리지만 결과 표에서는 뺀다 (NOTES D-23).
 - 데이터셋: 실내 iBims-1·NYUv2, 실외 DDAD·nuScenes·DIODE Outdoor. 학습에 쓴 모델은 배제하지 않고 표에 표시 (NOTES D-12).
 
 ## 반드시 지킬 규칙 (사용자 지정 — 바꿔야 하면 진행하지 말고 먼저 보고)
