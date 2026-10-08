@@ -41,6 +41,21 @@
 ### Track B (Track A 다음)
 - [x] D-19 설계 → H200 `trackb` 5 세트 (zip 878) → `tables/track_b.md` (2026-10-04)
 
+### VLM 약점 분석 (2026-10-07, D-20 · F-16 · F-17)
+- [x] 프로토콜·지표 재점검: 두 VLM 논문·공식 코드, pure vision 4 종 공식 저장소 대조 (조사 에이전트 2 개 + 핵심 주장 직접 확인) — F-16
+- [x] 로컬 예측 맵 7 조건 × 3 세트 (`~/data/vdr_maps`, Track B 와 반올림까지 일치) + ADE20K 분할 (`prep/semseg_ade.py`)
+- [x] 경우별 통계·표·히트맵·CI, 이미지 카드 1,200 장, 경우별 갤러리 75 장, 예시 E1–E10 → `results_vlm_weakness/`, 보고서 `docs/VLM_WEAKNESS.md`
+- [x] NYUv2 벤치 GT 8.19 m 상한 결함 확인 · Kinect 원측정 GT 로 재채점 (F-17)
+- [x] (사용자 결정 10-08) NYUv2 GT = Kinect 원측정 픽셀만 (D-22)
+- [x] Track A·B 주 결과 표·README 의 NYUv2 행을 원측정 GT(< 10 m)로 다시 냄 (D-22, `eval/nyu_raw_inputs.py`, `breakdown.py --nyu_boundary`) — 실행 로그 10-08 F-19 다음
+
+### zero-shot 재정리·NYUv2 평가 재점검 (2026-10-08, D-21 · F-18 · F-19)
+- [x] zero-shot 조합 확정 (논문 학습 목록 재확인) → D-21, 프로젝트 CLAUDE.md 규칙 11
+- [x] NYUv2 두 VLM 평가 재점검: 원측정 10.0 m 포화값 포함 오류 발견·수정(`weak_nyu_raw.py`), 원측정 판 표·곡선·CI 재생성(`weak_ci.py --nyuraw`), `docs/VLM_WEAKNESS.md` 수치 정정 → F-18
+- [x] 입력 틀 영향(SUN RGB-D 561×427 자른 입력 vs NYU 원본 640×480) 대조, Metric3Dv2 테두리 0 근처 예측 → F-18 · F-19
+- [ ] (사용자 결정) NYUv2 주 평가를 ① 원측정 GT(<10 m, 지금 입력) ② 표준 BTS(원본 640×480 입력·Eigen crop) 중 무엇으로 — ② 면 pure vision 3 종·DepthLM 재추론 필요
+- [ ] (선택) 실외 zero-shot 세트 추가 (KITTI·ETH3D, F-12) — 지금은 DIODE 한 세트뿐
+
 ### 이전 단계 기록 (재설계 전, 참고)
 - 2026-10-01 오전: DepthVLM 비교·6 개 세트(SUN RGB-D·ETH3D 포함) 설계로 준비 → D-11 에서 Track A 재설계. F-1(ETH3D 정렬)은 Track A 에 해당 없음.
 
@@ -48,7 +63,7 @@
 
 ### D-1 (2026-10-01) Track A 점 = DepthVLM-Bench 공개 점 (사용자)
 "코드에서 공개한 100개 샘플링 지점"의 해석이 둘이었다: DepthVLM-Bench 점(데이터셋당 1만 점; iBims-1 은 100장×100점)과
-DepthLM 저장소 `examples/ibims1`(같은 100장×100점이지만 다른 위치, 겹침 5/10,000, 유클리드 GT). 사용자가 **DepthVLM-Bench 점**을 골랐다.
+DepthLM 저장소 `examples/ibims1`(같은 100장×100점이지만 다른 위치, 겹침 5/10,000, 유클리드 GT — 2026-10-04 정정: 예제 라벨은 z, D-17). 사용자가 **DepthVLM-Bench 점**을 골랐다.
 DepthLM 공개 점은 iBims-1 에만 있고(다른 데이터셋은 시드 없는 무작위), Track A 규칙과도 맞지 않는다.
 
 ### D-2 (2026-10-01) DepthLM 이 답하지 못한 점은 모든 모델에서 제외 (사용자)
@@ -191,6 +206,27 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - 검증: DepthVLM 저장소 README 의 dense 표(δ1, 공식 방식 = canonical 해상도·이미지별 평균): DepthVLM nuScenes 0.838 / iBims-1 0.910,
   UniDepthV2 0.868 / 0.941, Metric3Dv2 0.843 / 0.724, DepthPro 0.379 / 0.879 (논문 본문에는 없음, NYUv2·DDAD·DIODE 참고 수치 없음).
 - README 를 공통 설계 / Track A / Track B 로 나눔.
+
+### D-20 (2026-10-07) VLM 약점 분석 설계 (사용자 지시: 두 VLM 이 학습하지 않은 세트 기준, 그 데이터를 보지 않은 pure vision 과 비교, 이미지 예시와 모든 경우를 그림으로 저장)
+- 세트: iBims-1·NYUv2·DIODE (두 VLM·pure vision 4 종 모두 zero-shot). DDAD·nuScenes 는 VLM 학습 데이터라 뺀다. KITTI·ETH3D 추가(F-12)는 이번에 하지 않음(사용자 '우선' — 다음 후보).
+- 예측 맵: Track B 는 통계만 저장했으므로 로컬 GPU 로 같은 코드를 다시 돌려 맵을 저장한다(`eval/dense_full.py --save_maps`, 실행 `prep/weak_maps.sh`). H200 은 왕복 비용이 커서 기각. 로컬 sdpa 와 H200 flash-attention 2 의 차이는 반올림 수준(검증함).
+- 물체 라벨: NYUv2 = GT 894 종. iBims-1·DIODE 는 GT 가 없어 Mask2Former Swin-L ADE20K 공개 체크포인트로 분할한다. 대안(평면 마스크만 쓰거나 물체 분석 생략)은 '물체' 요청을 채우지 못한다. 두 라벨을 같은 대분류(`weak_common.CATS`)로 묶는다.
+- 공정성 대조: GT intrinsics 비대칭의 크기를 재려고 UniDepthV2+K·DepthPro+f 부록 조건을 더한다. 주 비교는 바꾸지 않는다.
+- 구조 지표: iBims-1 DBE·평면성은 공식 코드를 구하지 못해 논문 식 1–4 를 재구현한다(Canny 0.1/0.2 + 변형 2 개, GT 자기 점검). 모델 간 상대 비교로만 쓴다.
+- 저장 위치: 그림·표 = `results_vlm_weakness/`(results*/ 규칙으로 git 제외, 약 0.5 GB), 맵 6 GB = `~/data/vdr_maps`(대용량은 ~/data 공통 규칙), 원자료 사본 = `~/data/vdr_raw/874·875·878`(예전엔 /tmp 에만 있었음). 보고서용 사본만 `docs/figs/vlm_weakness/`(약 3 MB).
+- 판정: VLM ÷ pure vision 4 종 중앙값. 공통 약점 = 두 VLM 모두 > 1 이고, 그 경우가 있는 세트에서 이미지 bootstrap 95 % CI 가 1(또는 0)을 넘는 것.
+
+### D-21 (2026-10-08) 분석은 zero-shot 조합만, 실내·실외 따로 (사용자 지시: "이제부터 분석할 때 zero-shot 인 데이터만 판단, 비교 모델도 zero-shot 인 경우만")
+- 학습 목록(논문 원문 재확인): DepthLM = Argoverse2·Waymo·nuScenes·ScanNet++·Taskonomy·HM3D·Matterport3D (부록 표 4), DepthVLM = 같은 7 종 + DDAD (§3).
+  pure vision 은 D-12 그대로 (Metric3Dv2 만 DDAD 학습).
+- 결과 조합: 실내 iBims-1·NYUv2 = 6 모델 모두 zero-shot. 실외 DIODE = 6 모델 모두. DDAD = DepthLM + DAv2·UniDepthV2·Depth Pro (DepthVLM·Metric3Dv2 제외).
+  nuScenes 는 두 VLM 모두 학습 → VLM 분석에서 뺀다. 순위·비는 이 조합 안에서만 낸다.
+- 기존 표(Track A·B 주 결과)는 그대로 두고, 분석·보고에서만 이 조합을 쓴다.
+
+### D-22 (2026-10-08) NYUv2 는 원측정만, GT 초점거리는 공식 설정 문제로만 본다 (사용자 지시)
+- NYUv2 GT = labeled.mat rawDepths 의 실측 픽셀만 (0.005 m ≤ GT < 10 m, F-18). 채운 값(벤치 depth_bfx, 채움 픽셀)과는 비교하지 않는다 — 주 표·README 도 이것으로 바꾼다.
+- GT 초점거리: 각 모델은 논문·공식 코드대로 (쓰도록 설계된 모델에만 준다, D-13). 이것을 공정성 문제로 다루지 않는다. UniDepthV2+K·Depth Pro+f 는 참고용 부록 조건, 주장에 쓰지 않는다.
+- 'SILog 만 유독 나쁜가' 판단은 대체적인 경향이면 충분 (모든 모델보다 나쁠 필요 없음).
 
 ## 확인이 필요한 발견
 
@@ -430,3 +466,101 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
   · 원본 NYUv2 와 직접 대조 (~/data/nyuv2/nyu_depth_v2_labeled.mat, 미터 실수값): SUN RGB-D NYU 이미지는 원본 640×480 을 561×427 로 자른 것(위치 y≈45–46, x≈43–45).
     NYU0001·0329·1000 에서 png / 원본 미터 = 7,970–7,983 (depth_bfx ↔ depths, depth/ ↔ rawDepths 모두) → /8000 이 원본 미터, /10000 은 0.8 배. 확정.
   · 우리 결과(0.673)는 바꾸지 않는다: 실제 미터 GT 가 맞고, DepthLM 은 NYU 를 학습하지 않았으므로 약 0.85 배로 짧게 답하는 것이 모델 자체의 행동.
+- 2026-10-07 **F-15 DepthVLM-4B 의 약점 (Track B, 878 이미지별 통계 + 로컬 GT 장면 특성 + 겹침 그림; 일회성 분석, GPU 사용 없음)**:
+  · 배율은 5 모델 중 가장 정확: DIODE 를 뺀 4 세트에서 exp(평균 log 오차) 1.000–1.002, 이미지 간 배율 흔들림(sd) 0.025–0.068 로 1 위. log-MSE 의 76–99 % 가 모양(배율 무관) 오차.
+  · δ1 은 어디서도 1 위가 아님: 5 세트 × (전체·근·중·원·경계·내부) 칸 모두 2–4 위, DDAD·nuScenes(학습†) 카메라 6 대 모두 2–3 위. 이미지별 δ1 1:1 승률 vs UniDepthV2: iBims-1 10 %·DDAD 21 %·nuScenes 19 %.
+    반대로 RMSE 는 1 위가 많고 AbsRel p99 꼬리가 가장 짧음 → 크게 망가지는 이미지는 적지만 픽셀 정밀도가 낮다.
+  · 모양 오차는 GT 가 조밀하고 날카로울 때만 드러남: SILog iBims-1 11.1 (다른 모델 5.9–7.3, 이미지 78 % 에서 꼴찌, 장면 종류 10 개·깊이 3 등분 모두 꼴찌), DIODE 38.5 (5 위).
+    채움 GT(NYUv2 depth_bfx)·희소 LiDAR(DDAD·nuScenes) 에서는 SILog 1 위. 겹침 그림: 예측 맵이 흐리고 격자 무늬, 의자 다리·창틀·나무 윤곽이 사라짐(DDAD 나무 위쪽은 LiDAR 점이 없어 채점 안 됨).
+  · 경계: δ1 경계 − 내부 = −0.20 (iBims-1 다른 모델 −0.05 – −0.14 → 가장 큼, NYUv2 −0.17 – −0.20 → 공동 최대). iBims-1 경계 RMSE·δ1 4 위.
+  · 거리: 모든 세트에서 가까운 곳 5–9 % 멀게(근거리 배율 1.05–1.09), 먼 곳 7–17 % 가깝게(0.83–0.93) — 압축. 실내 원거리 δ1 4 위(iBims-1 0.868 vs 0.939, NYUv2 0.847 vs 0.900).
+    압축 정도(원/근 배율 비)는 NYUv2 0.868(다른 모델 0.896–0.955)·DIODE 0.524(UniDepthV2·Metric3Dv2 0.83–0.85)에서 가장 심함.
+  · DIODE(실외 zero-shot): 장면이 깊을수록 배율이 무너짐 — 이미지 배율 ~ 장면 중앙 깊이 기울기 −0.25 (r −0.61), 중앙 깊이 16 m 이상 3 분위 배율 0.716·δ1 0.174. DDAD·nuScenes 깊은 장면은 0.995–0.999 → 학습 도메인 밖에서만.
+    scene_00023 (scan 198·199) 배율 0.70, 모든 지표 4–5 위. δ1 < 0.5 인 이미지 68 %.
+  · 강점(대조): nuScenes 밤(현지 19 시 이후 108 장) δ1 0.714 로 1 위(다른 모델 최고 0.687), NYUv2 장면 종류 14 개 전부 RMSE 1 위.
+  · (추가) 흐린데도 점수가 좋은 이유: ① 배율 — 이미지별 배율을 GT 로 맞춰 주면 iBims-1 log-RMSE DepthVLM 0.121 vs 0.070–0.083 (꼴찌), 실제는 0.138 로 2 위 = 순위는 배율 덕.
+    ② 디테일 픽셀이 적음 — 경계(3 px) 픽셀 iBims-1 4.4 %·NYUv2 6.5 %, DepthVLM log 제곱오차 중 경계 몫 13 %·21 %. ③ GT 가 디테일을 못 봄 — GT 덮는 픽셀 DDAD 1.9 %·nuScenes 0.2 %(이미지 위 1/3 은 ≈ 0 %), NYUv2 는 채움 GT.
+    NYUv2·DDAD·nuScenes 에서는 배율을 맞춘 뒤에도 DepthVLM 이 1 위(0.151 / 0.232 / 0.256). 해석(미확인): 흐림 = 경계에서 중간값으로 헤지 → RMSE 엔 유리, δ1 엔 불리.
+  · (추가) 이미지별 배율 b (평균 log 비, a = 1) 를 GT 로 맞춘 뒤 순위 — DepthLM (Track A 공통 점, 공식 정의, 선형 지표는 자르지 않음):
+    RMSE iBims-1 5→5 · NYUv2 2→5 · DDAD 3→5 · nuScenes† 1→1 · DIODE 3→4, δ1 4→5 · 5→5 · 3→4 · 3→3 · 4→5. iBims-1 log-RMSE 0.205 vs dense 0.070–0.076.
+    (F-14 는 중앙값 배율이라 NYUv2 값이 다름 0.772 vs 0.640, 결론 같음.) DepthVLM (Track B, log-RMSE 만 가능): iBims-1 2→5, DIODE 2→4, NYUv2·DDAD†·nuScenes† 1→1.
+  · (추가) NYUv2 에서 SILog 1 위인 이유 = GT 의 채운 픽셀: labeled.mat rawDepths 로 이미지별 '원측정 없음 → 채움' 비율(평균 13 %, 최대 61 %; 오프셋 이미지별 y 43–48·x 41–47, 원측정 픽셀 차 중앙 0.5 %, 652/654 장).
+    채움 ≤ 7 % 이미지 SILog DepthVLM 9.1 **4 위** (UniDepthV2·DepthPro 7.8), 7–15 % 3 위, 15 % 이상 18.4 **1 위** (다른 모델 22.0–26.9). 채움 비율 ~ (DepthVLM − 다른 모델 중앙) Spearman −0.41.
+    iBims-1 → NYUv2 SILog: 다른 모델 ×2.2–2.5, DepthVLM ×1.18. 남은 교란: 채움 많은 장면 = Kinect 가 못 재는 곳(먼 벽·유리·검은 면) → 원측정 픽셀만으로 재채점해야 확정(예측 맵 필요).
+- 2026-10-07 **F-16 VLM 약점 분석 (D-20)** — zero-shot 3 세트, DepthLM·DepthVLM vs pure vision 4 종. 보고서 `docs/VLM_WEAKNESS.md`, 그림 `results_vlm_weakness/`.
+  · 실행: 로컬 맵 7 조건(5 모델 + UniDepthV2+K·DepthPro+f) × 3 세트 1,200 장, 약 30 분(DepthVLM 0.2 s/장). 전체 지표가 Track B 표와 반올림까지 같고(예: DepthVLM iBims-1 0.643/0.100/0.910 vs 0.641/0.099/0.911), 공통 점 pure vision 값은 H200 Track A 와 ±0.3 %.
+    DepthPro+f 첫 실행은 f_px 를 float 로 넘겨 실패(공식 infer 는 `.squeeze()` 를 부름) → 공식 CLI 처럼 numpy 실수로 고쳐 재실행.
+  · 프로토콜 재점검(조사 에이전트 2 개 + 직접 확인): 지표 식·마스크·cap·DepthVLM/DepthLM/pure vision 추론 경로가 공식과 같음. 점 샘플러는 균일(경계 점 비율 = 픽셀 비율).
+    고친 문서: PROTOCOL 4.6·9 절 B = 2,000 → 실제 1,000, UniDepthV2 '카메라 없음' 경로를 scripts/demo.py → README 예시(demo 는 GT K 를 넣음), D-1 의 '유클리드 GT' 정정 표시.
+    부록 대조: GT intrinsics 를 주면 UniDepthV2 iBims-1 AbsRel 0.090 → 0.077·δ1 0.943(DepthVLM 0.100·0.910 추월), DepthPro NYUv2 배율 치우침 +9.2 → +0.9 %. 모양 오차는 그대로 → VLM 배율 강점 일부는 GT 초점 입력 덕.
+    Depth Pro 예측 미절단(0.08 % 픽셀 10⁴ m)이 실외 RMSE 를 지배(DIODE 80 m 로 자르면 88.8 → 9.25). DepthVLM 학습 라벨 일부 유클리드(Argoverse2·Waymo)지만 출력에 징후 없음.
+    논문 쪽: DepthVLM 공식 sparse 평가는 맵 크기와 canonical 좌표가 어긋남(논문 수치에만 영향), DepthLM iBims 예제 점 254 개가 투명 영역.
+  · 공통 약점 (CI = 이미지 bootstrap, B = 1,000):
+    ① 깊이 차 10–25 % 쌍 앞뒤 오답률 − PV 중앙값: iBims-1 LM +13.5 %p [11.1, 16.3]·VLM +9.9 [8.2, 11.6], NYUv2 원측정 +5.7 [4.7, 6.7]·+6.6 [5.7, 7.5], DIODE +10.6 [9.1, 12.2]·+8.0 [6.8, 9.0].
+    ② 평면(iBims-1 공식 126 평면, 공통 점) ε_plan LM 2.87 cm·VLM 5.05 cm vs PV 0.33–0.59 (비 6.6 [5.3, 7.9]·10.7 [9.6, 12.3]), ε_orie 6.4°·9.1° vs 1.5–2.3°. 픽셀(244 평면) DepthVLM 6.53 cm·13.1° vs 0.50–1.37·1.9–2.8.
+       벽에 붙은 평평한 물체: |물체 − 둘레 벽| LM 5.1 %·VLM 6.6 % vs PV 1.1–2.1 % (방향은 일정하지 않음).
+    ③ 원거리 모양 오차 비: iBims-1 LM 3.45 [2.39, 4.66]·VLM 1.59 [1.41, 1.84], DIODE 1.65 [1.51, 1.84]·1.16 [1.08, 1.25], NYUv2 원측정 1.42 [1.22, 1.69]·2.06 [1.60, 2.67]. 압축 기울기 a: iBims-1 0.80·0.90 vs 0.95–0.99, DIODE 0.60·0.64 vs 0.69–0.87.
+    ④ DIODE 깊은 장면 배율(장면 깊이 기울기): LM −0.41·VLM −0.25 vs Metric3Dv2 +0.01 (같은 GT 초점 입력). Depth Pro −0.25·DAv2 −0.49 도 같은 방향 → VLM 만의 것은 아님.
+    이미지 단위: 두 VLM 이 PV 4 종 전부보다 모양 오차가 큰 이미지 iBims-1 87 %, NYUv2(벤치 GT) 34 %, DIODE 29 %.
+  · DepthVLM 만: 경계 계단 폭 15.0 px vs 4.2–5.1(GT 1.8), DBE ε_comp 7.63 vs 2.08–3.24(GT 자기 점검 1.08), 토큰 주기(17.3/16.5/28.4 px) 스펙트럼 봉우리 2.1–2.5 배 vs 1.0–1.3
+    (원인 후보: dpt_depth_head.py:65–85 kernel = stride 전치 합성곱). PV 대비로는 경계(1.33)보다 면 안쪽(1.68)이 나쁨 → 가장 큰 약점은 면.
+  · DepthLM 만: 답 재사용 계단(corridor_01 99 점에 56 개, F-14), 모양 오차 20.5 % vs 7.0–7.6.
+- 2026-10-07 **F-17 NYUv2 벤치 GT 결함 — 8.19 m 이상을 표현 못 하고 더 작은 값으로 채워짐 (결론 바뀜)**: 벤치 GT = SUN RGB-D depth_bfx png ÷ 8,000 → 16 비트 한계 8.19 m. 654 장 최댓값 7.995 m(png 63,960).
+  손상 방식: 원측정 ≥ 8.25 m 픽셀 59.8 만 개 중 png 값이 '원측정×8000 mod 65536'(단순 넘침)과 맞는 것은 4.2 %뿐 → 넘침이 아니라 더 작은 값으로 채워진 것(SUN RGB-D 채우기 과정 추정, 원본 처리 코드 없음). 예 NYU0335 원측정 8.67 m → png 45,416 = 5.68 m.
+  Kinect 원측정(labeled.mat rawDepths, 이미지마다 자르기 위치 맞춤)이 8–10 m 인 픽셀(실측의 0.51 %, 109 장)에서 벤치 GT 중앙 4.86 m vs 원측정 9.07 m. 실측 픽셀 전체로는 벤치 − 원측정 중앙 −0.006 m 지만 RMSE 0.487 m.
+  그 픽셀은 대부분 실제 먼 표면(라벨 없음 47 %·벽 19 %·문 5 %·액자 4 %, 창문 3 %·거울 0.1 %). 예측 중앙: PV 4 종 9.2–10.1 m(원측정 쪽), DepthVLM 4.1 m(벤치 쪽), DepthLM 점 원측정 대비 0.78 배(무너지지 않음).
+  벤치 GT < 원측정/2 인 픽셀(55 장): DepthVLM 79 % 가 벤치 GT 에 더 가까움(PV 3–5 %). 공개 학습 설정(configs/train_datasets.conf)에 NYUv2·SUN RGB-D 없음,
+  DepthVLM 은 8.19 m 보다 앞인 5–6 m 부터 서서히 꺾임(NYUv2 원측정 10.25 m 에서 0.26 배; iBims-1 레이저는 12 m 까지 0.80 이상) → 손상을 배웠다기보다 Kinect 실내 원거리 압축이 같은 방향의 GT 결함과 겹친 것으로 해석(미확정).
+  원측정 GT 재채점(전체 픽셀; **F-18 정정: 10.0 m 포화값을 넣은 값이라 아래 수치 중 RMSE 는 부풀려짐 — DepthVLM 0.476, PV 3 종과 동률**): DepthVLM RMSE 0.453(1 위) → 0.547(5 위), SILog 13.1(1 위) → 11.2(4 위), AbsRel 0.082·δ1 0.942(둘 다 2 위). Metric3Dv2 0.877 → 0.348. PV SILog 14–18 → 8–11.
+  공통 점(원측정 있는 8,492 점): DepthVLM 0.374 → 0.551, DepthLM 0.695 → 0.626. → Track A·B NYUv2 행(특히 RMSE·SILog)은 GT 결함의 영향을 받음. 주 표를 바꿀지는 사용자 결정 대기.
+  읽는 방법 문제인지 확인: 원측정 ≥ 8.25 m 픽셀에서 bfx png 하위 3 비트가 100 % 0 — SUN RGB-D 툴박스 방식(read3dPoints.m 의 3 비트 회전)으로 읽어도 원측정 ±5 % 안 0.1 % (÷8000 도 0.1 %).
+  가까운 곳(0.5–7.5 m)은 두 방식 모두 98.2 % 일치 → 파일 자체에 8.19 m 너머 정보가 없다. 다른 저장소의 NYU 출처: Metric3D = BTS 식 sync_depth png ÷1000(mm), UniDepth = nyuv2.hdf5 depth_scale 1000,
+  우리 Metric3Dv2 재현(m3d_nyu.py) = labeled.mat → 모두 SUN RGB-D 사본이 아니라 NYU 공식 데이터 계열. SUN RGB-D 사본을 쓰는 쪽은 DepthVLM 벤치(depth_bfx ÷8000)와 DepthLM(curate_NYU.py, 원측정 png ÷10000).
+  DepthVLM utils/datasets.py 는 sunrgbd 상한 8.0 m, nyuv2 상한 10.0 m — 같은 SUN RGB-D 파일에서 꺼낸 NYUv2 에 NYU 표준 상한을 건 것이 어긋난 지점으로 보임.
+  원측정 GT 로 보면 NYUv2 도 iBims-1 과 같은 그림(두 VLM 모든 경우 > 1: 벽 1.79·2.13, 벽에 붙은 물체 2.07·2.21, 작은 물체 1.61·1.64). F-15 의 'NYUv2 1 위 = 채운 GT' 해석은 '채운 GT + 8.19 m 이상 결함'으로 보강.
+- 2026-10-08 **F-18 NYUv2 원측정 재채점(F-17)의 오류 — 원측정 10.0 m 포화값을 정답으로 넣었다 (수정함)**: rawDepths(SUN 자르기 창 안)에서 정확히 10.0 m 인 픽셀 195,574 개,
+  [9.999, 10) 은 35 개, [9.9, 9.999) 5,679 개 → 10.0 은 센서 상한에서 잘린 포화값(실측 아님). `weak_nyu_raw.py` 가 0.005 ≤ GT ≤ 10 (포함)으로 잘라 이 값을 넣었다. BTS 표준은 GT < 10.
+  · 영향 (전체 픽셀, pooled RMSE, 포함 → 제외): DepthVLM 0.547 → **0.476** (DepthVLM 제곱오차의 약 25 % 가 이 0.14 % 픽셀), Metric3Dv2 0.348 → 0.339, UniDepthV2 0.480 → 0.459, Depth Pro 0.468 → 0.454, DAv2 0.480 → 0.472.
+    DepthVLM 순위는 그대로 5 위지만 UniDepthV2·Depth Pro·DAv2 와의 차이는 +0.004–0.021 m, 짝지은 이미지 bootstrap 95 % CI 가 0 을 포함 → '꼴찌'가 아니라 3 종과 동률, Metric3Dv2 보다만 유의하게 나쁨(+0.136 [0.079, 0.186]).
+    AbsRel 0.081·δ1 0.943 은 2 위(3 종보다 유의하게 좋음), 모양 오차 12.0 은 4 위(3 종보다 +2.1–2.8 유의하게 나쁨). 원거리(≥ 4 m)는 RMSE 1.199·δ1 0.849·모양 17.3 모두 4 종 전부보다 유의하게 나쁨.
+    공통 점(8,483 점): 벤치 GT → 원측정 DepthVLM 0.364 → 0.489 (1 → 5 위), DepthLM 0.656 → 0.623 (6 위, RMSE·AbsRel·δ1·모양 모두 4 종 전부보다 유의하게 나쁨).
+  · 같이 바뀐 것: E10 곡선의 NYUv2 10.25 m 칸(= 포화값만 모인 칸, 'DepthVLM 0.26 배·UniDepthV2 1.28') 사라짐 → 마지막 칸 9.75 m DepthVLM 0.38. 원측정 8–10 m 픽셀 108 장 501,338 개
+    (벤치 GT 4.6 m · 원측정 8.8 m · DepthVLM 4.6 m · PV 8.6–9.0 m, 이미지별 중앙값의 픽셀 가중 평균). 벤치 GT 를 따르는 비율 DepthVLM 79 → 69 % (49 장). 원거리 모양 오차 비 DepthVLM 2.06 → 1.85 [1.49, 2.35],
+    DepthLM 1.42 그대로. 공통 점 모양 비(LM·VLM): 벽 1.80·2.00, 벽에 붙은 물체 2.09·1.88, 작은 물체 1.51·1.25. 앞뒤 오답률 차는 그대로(+5.7·+6.6 %p).
+    `weak_ci.py --nyuraw` 가 이전 ci_common_nyuraw.csv(일회성)를 재현함을 확인(DepthLM ① 1.420 vs 1.417), 기본 실행 결과는 기존 ci_common.csv 와 같음.
+  · 입력 틀 대조 (같은 픽셀 = Eigen crop ∩ SUN 창, 원측정 < 10 m, 652 장): DepthVLM SUN 자른 입력(561×427) pooled RMSE 0.474 / 이미지별 0.375 / AbsRel 0.081 / δ1 0.944
+    vs NYU 원본 입력(640×480, depthvlm-finetune F-6 예측) 0.405 / 0.350 / 0.088 / 0.938. 예측 비 중앙 1.000 (5–95 % 0.94–1.06). Metric3Dv2 도 0.313 vs 0.282 (전처리도 hub vs 벤치마크로 다름).
+    → 입력 틀만으로 RMSE 가 10–15 % 달라진다. 버그는 아니고 프로토콜 차이 — 문헌(BTS 표준) 수치와 비교하려면 원본 640×480 입력이어야 한다.
+  · 확인한 것(문제 없음): DepthLM NYU z 변환의 intrinsics 는 SUN 자르기 기준(fx 518.86, cx 284.58, cy 208.74), NYU 는 두 VLM 모두 학습에 없음(D-21), DepthLM 공식 NYU 라벨 0.8 배(F-11)는 논문 수치에만 영향.
+- 2026-10-08 **F-19 Metric3Dv2 의 0 근처 예측 (원인 미확인, 공식 경로 그대로)**: 예측 < 0.1 m 이면서 GT 유효한 픽셀 NYUv2 280,588 (0.179 %, 516 장)·DIODE 0.014 %·iBims-1 0.005 %, 다른 모델은 0.
+  NYUv2 에서는 아래 10 행 42 %·오른쪽 10 열 48 % — 테두리. 그 자리 RGB 밝기는 정상(검은 띠 아님), GT 중앙 1.7 m. 어댑터는 hub 데모와 줄 단위로 같다(dense_sparse.py 61–73).
+  NYU 원본 입력·벤치마크 전처리(depthvlm-finetune)에서는 3,213 픽셀뿐. 영향: Metric3Dv2 의 log 지표만 — NYUv2 원측정 SILog 10.7 → 이 픽셀 빼면 7.8 (원본 입력 6.7), RMSE·AbsRel 은 미미.
+  NYUv2 에서 'VLM ÷ PV 중앙값' 모양 비는 Metric3Dv2 가 부풀어 VLM 쪽에 약간 유리(보수적). 공식 설정 변경은 사용자 확인 사항이라 그대로 둔다.
+- 2026-10-08 **F-20 모양 오차(SILog)의 구성 — 순서를 지키는 왜곡 ≈ 절반, 순서를 깨는 비일관성 ≈ 절반 (zero-shot 3 세트, 일회성 분석, CPU)**:
+  이미지마다 log 예측을 GT 의 ① 직선(압축) ② 단조 증가 함수(isotonic)로 맞춘 잔차. ② 잔차 = 어떤 순서 보존 재매핑으로도 못 없애는 부분(같은 실제 깊이인데 다르게 예측 = 순서 뒤바뀜의 크기).
+  전체 픽셀(이미지당 40k 표본), log rms ×100 — 모양 → 직선 뺀 뒤 → 단조 뺀 뒤 (모양 분산 중 순서 보존 몫):
+  · iBims-1: DepthVLM 12.1 → 9.9 → 8.4 (52 %) / PV 7.0–8.3 → 6.1–7.1 → 5.0–6.2 (43–54 %). 두 부분 모두 PV 의 약 1.5–1.7 배.
+  · NYUv2 원측정: DepthVLM 12.4 → 10.4 → 8.4 (55 %) / PV(Metric3Dv2 제외, F-19 테두리 탓에 11.3) 9.3–10.1 → 7.3–8.5 → 6.1–7.0 (52–57 %).
+  · DIODE: DepthVLM 42.9 → 28.4 → 23.7 (69 %) / PV 31.0–43.8 → 25.9–30.1 → 21.8–25.3 (50–75 %) — 순서를 깨는 부분은 PV 와 같음 → 실외 약점은 압축·장면 깊이별 배율(순서 보존 쪽).
+  · 공통 점 iBims-1: DepthLM 20.5 → 15.3 → 13.1 (59 %) vs PV 7.0–7.6 → 6.0–6.3 → 4.0–4.4 — DepthLM 은 순서를 깨는 부분이 PV 의 3 배 (답 재사용·튐, F-14).
+  해석: 순서 뒤바뀜은 모양 오차의 원인이 아니라 결과의 일부 — 국소 비 오차가 실제 깊이 차보다 클 때만 생긴다 (10–25 % 쌍 오답 DepthVLM 11.8 % vs PV 1.6–2.3 %, 2 배 넘는 쌍 0.4 % = PV 와 같음).
+  나머지 절반은 순서를 전혀 바꾸지 않는 거리별 왜곡(압축)이다. 스크립트: scratchpad shape_decomp.py (GT 로 맞추는 분석 전용 분해).
+- 2026-10-08 **F-19 원인 실험 — Metric3Dv2 의 0 근처 예측 = 가까운 물체가 이미지 가장자리에 잘린 곳 (가까운 거리 자체를 못 보는 것은 아님)**:
+  · 위치: 아래·오른쪽 가장자리에서 안쪽으로 약 8 px 에 걸쳐 줄어드는 띠 (맨 끝 행 19,078 → 7 번째 6,367 → 9 번째 1,083). 그 자리 GT 중앙 1.1–1.4 m(이미지에서 가장 가까운 면:
+    NYU0469·0387 오른쪽 끝 문틀·문, NYU0334 아래쪽 책상 모서리). 같은 거리(1 m)라도 이미지 안쪽은 정상으로 예측 → 근거리 일반의 문제 아님.
+  · 입력 띠 아님: 원본 NYU 의 흰 무효 테두리(행 ≥ 474, 열 ≥ 633)는 SUN 자르기 창(아래 끝 469–474, 오른쪽 끝 601–607) 밖. 창 테두리 RGB 밝기 정상.
+  · 실험 (공식 hub 전처리 그대로, CPU — 깊이 기대값 bin 텐서만 같은 장치로 옮기는 스크립트 내 패치; 조건 ① 이 저장 맵과 픽셀 수까지 같음 4691 vs 4688 등), 3 장의 0.1 m 미만 픽셀 수:
+    ① 그대로 4,691 / 3,905 / 3,373  ② 상하좌우 뒤집어 넣고 되돌림 3,455 / 828 / 820 — 띠가 원래 자리(내용)를 따라감, 양은 줄어듦
+    ③ 가장자리 반사 16 px 늘림 186 / 0 / 1,423(다른 쪽에 새로 생김)  ④ NYU 원본 640×480 입력 → 같은 창 21 / 303 / 906.
+  · 해석: 가까운 면이 화면 끝에서 잘리면 Metric3Dv2 가 그 면이 화면 밖으로 계속 다가온다고 외삽해 끝 몇 px 에서 0 으로 떨어지고, 공식 clamp(0, 300) 로 0 이 된다.
+    가장자리 너머 맥락(원본 이미지·반사)을 주면 대부분 사라진다. SUN RGB-D 판은 원본을 Eigen crop 과 거의 같은 창으로 잘라 입력해서 이 띠가 평가 영역 안에 들어온다
+    (표준 BTS 평가는 원본을 넣고 Eigen crop 으로 가장자리를 빼서 거의 안 보임 — depthvlm-finetune 3,213 px). 공식 출력이라 값은 그대로, log 지표 각주. 스크립트: scratchpad m3d_edge_test.py.
+- 2026-10-08 **주 표·README 의 NYUv2 를 원측정 GT 로 (D-22)**: `eval/nyu_raw_inputs.py` → `~/data/vdr_raw/nyuraw/` (Track A: 875 nyuv2 parquet 의 gt_z 만 원측정으로, 9,970 → 8,684 점;
+  경계 = 원측정 GT 이웃 깊이 비; Track B: 로컬 맵 + dense_full.sums, d1_canon 은 878 값). 정렬 오차로 NYU0273·NYU1176 제외 → 652 장.
+  · 회귀 확인: 바꾸기 전 874·875·878 원자료로 score.py·breakdown.py·score_dense.py 를 다시 돌려 tables/ 의 csv 3 개와 차이 0.0. 바꾼 뒤 달라진 행은 nyuv2 와 실내 평균뿐.
+  · `breakdown.py --nyu_boundary` 추가(기본은 예전과 같음). tables/ track_a·track_a_breakdown·track_b(.csv·.md), track_a_depthlm_converted·raw.md 재생성. track_a_checks.md 는 논문 재현 확인(벤치 GT)이라 그대로.
+  · README: `readme_tables.py` 출력으로 표 10 개 교체, 공통 설계에 NYU 정답 문단, 경계 점 NYUv2 643 → 271. PROTOCOL 6 절·10 절 갱신.
+  · NYUv2 (pooled RMSE / AbsRel / δ1, 벤치 → 원측정): Track A 공통 점 8,483 — DepthLM 0.831 → 0.623 / 0.213 → 0.172 / 0.673 → 0.682, DAv2 0.908 → 0.462, UniDepthV2 0.980 → 0.444,
+    Metric3Dv2 0.807 → 0.304, Depth Pro 0.959 → 0.449 → DepthLM RMSE 2 위 → 5 위. Track B — DepthVLM 0.453 → 0.476 / 0.099 → 0.081 / 0.921 → 0.943 (RMSE 1 위 → 5 위, AbsRel·δ1 2 위),
+    PV 4 종 RMSE 0.34–0.47. 실내 평균 Track B: DepthVLM RMSE 0.547 → 0.558 (1 위 → 3 위), AbsRel 0.090·δ1 0.927 은 1 위 유지.
+

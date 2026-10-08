@@ -48,6 +48,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--B", type=int, default=1000)
     ap.add_argument("--depthlm", choices=["official", "converted", "raw"], default="official")
+    ap.add_argument("--nyu_boundary", default="", help="NYUv2 경계 표시 파일 (원측정 GT 로 채점할 때: nyu_raw_inputs.py 출력, NOTES D-22)")
     a = ap.parse_args()
     d = pd.concat([pd.read_parquet(f, columns=["dataset", "image_id", "u", "v", "gt_z", "pred", "pred_raw", "model"]) for f in a.files])
     d = depthlm_answers(d[d.model.isin(a.models)], a.depthlm)
@@ -62,7 +63,8 @@ def main():
         x["bin"] = pd.cut(x.gt_z, BINS[dom], labels=BIN_NAMES, right=False)
         groups = [("all", x)] + [(f"dist:{b}", x[x.bin == b]) for b in BIN_NAMES]
         if ds in BOUNDARY_SETS:
-            bd = pd.read_parquet(os.path.join(ROOT, "bench", f"boundary_{ds}.parquet")).dropna(subset=["boundary"])
+            bf = a.nyu_boundary if ds == "nyuv2" and a.nyu_boundary else os.path.join(ROOT, "bench", f"boundary_{ds}.parquet")
+            bd = pd.read_parquet(bf).dropna(subset=["boundary"])
             y = x.merge(bd[["image_id", "u", "v", "boundary"]], on=["image_id", "u", "v"])
             groups += [("region:boundary", y[y.boundary.astype(bool)]), ("region:interior", y[~y.boundary.astype(bool)])]
         for name, g in groups:

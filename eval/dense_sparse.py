@@ -37,7 +37,7 @@ def dav2(domain):
 
 
 def unidepth(domain):
-    """UniDepthV2 ViT-L — README·scripts/demo.py 경로: from_pretrained → infer(uint8 RGB CHW), camera 없음(GT intrinsics 미사용),
+    """UniDepthV2 ViT-L — README 예시 경로: from_pretrained → infer(uint8 RGB CHW), camera 없음(GT intrinsics 미사용; scripts/demo.py 는 K 를 넣는 다른 경로),
     resolution_level 미설정(데모와 같음 → 화소 예산 0.2–0.6 MP), interpolation_mode bilinear. 출력 depth = z (원본 해상도)."""
     sys.path.insert(0, os.path.join(EXT, "UniDepth"))
     from PIL import Image

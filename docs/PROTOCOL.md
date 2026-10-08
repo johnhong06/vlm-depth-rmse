@@ -30,7 +30,7 @@ Track A를 재현하거나 검토할 때 필요한 설정을 모은 문서다. �
 |---|---|---|---|
 | DepthLM-12B | `eval.py`와 `dataset_inference` 전처리. bf16, text attention flash_attention_2(설치돼 있지 않으면 sdpa) + vision eager | `third_party/DepthLM_Official` @3e76f58 | `facebook/DepthLM` |
 | Depth Anything V2 metric | `metric_depth/run.py` → `infer_image(BGR, 518)` | Depth-Anything-V2 @a561b84 | HF Metric-Hypersim-Large @7972080, Metric-VKITTI-Large @070e97e |
-| UniDepthV2 | README·`scripts/demo.py` → `infer(RGB)`, 카메라 입력 없음, fp16 autocast | UniDepth @8d8cfe4 | HF `lpiccinelli/unidepth-v2-vitl14` @52b349b |
+| UniDepthV2 | README 예시 → `infer(RGB)`, 카메라 입력 없음, fp16 autocast (`scripts/demo.py` 는 GT K 를 넣는 경로라 다르다 — 2026-10-07 정정) | UniDepth @8d8cfe4 | HF `lpiccinelli/unidepth-v2-vitl14` @52b349b |
 | Metric3Dv2 | `hubconf.py`의 `metric3d_vit_large`와 같은 파일의 데모 전후처리 | Metric3D @eb5b6fa | HF `JUGGHM/Metric3D` `metric_depth_vit_large_800k.pth` |
 | Depth Pro | `cli/run.py` (GPU, fp16) → `infer(f_px=None)` | ml-depth-pro @9e65e4d | HF `apple/DepthPro` @ccd1350 |
 
@@ -160,7 +160,7 @@ valid mask와 데이터셋별 min/max depth cap은 모든 모델에 똑같이 �
 
 ### 4.6 bootstrap (규칙 7)
 
-데이터셋마다 이미지를 복원추출해 지표를 다시 계산하고, 2.5·97.5 백분위로 95% 신뢰구간을 낸다. B = 2,000, seed 0이다. 모든 모델이 같은 재표본을 쓰며, 도메인 신뢰구간은 같은 회차의 데이터셋 값을 평균해 낸다. H200 작업 끝에 찍는 요약 표는 B = 1,000이다.
+데이터셋마다 이미지를 복원추출해 지표를 다시 계산하고, 2.5·97.5 백분위로 95% 신뢰구간을 낸다. 결과 표(`tables/`)는 B = 1,000, seed 0으로 만들었다(`run.sh`가 `--B 1000`을 넘긴다. `score.py`·`score_dense.py`의 기본값은 2,000). 모든 모델이 같은 재표본을 쓰며, 도메인 신뢰구간은 같은 회차의 데이터셋 값을 평균해 낸다. (2026-10-07 정정: 예전 문구는 표가 B = 2,000이라고 적었다.)
 
 이유: RMSE는 꼬리 오차에 민감해 모델 간 차이가 유의미한지 보여야 한다.
 
@@ -221,6 +221,8 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 |---|---|---|--:|--:|---|--:|--:|--:|--:|
 | 실내 | iBims-1 | 전체 (core) | 0.005 | 25 | `mask_invalid`, `mask_transp` | 100 | 100 | 10,000 | 42 |
 | 실내 | NYUv2 | 공식 test (SUN RGB-D 판, 561×427) | 0.005 | 10 | – | 654 | 15–16 | 10,000 | 42 |
+
+NYUv2 정답 (2026-10-08 개정, NOTES D-22·F-18): 점 위치와 입력 이미지는 위 벤치 그대로 두고, 정답만 `nyu_depth_v2_labeled.mat` rawDepths(Kinect 실측 픽셀)로 바꾼다. 0.005 m ≤ 정답 < 10 m (정확히 10.0 m는 센서 포화값이라 뺀다), SUN RGB-D 자르기 위치는 이미지마다 원측정에 맞춘다(`eval/weak_common.nyu_offset`, 정렬 오차 > 2 %인 NYU0273·NYU1176 제외 → 652장). 원측정이 없는 점·픽셀은 빠진다(Track A 공통 점 8,483). 경계는 원측정 정답으로 같은 정의(이웃 깊이 비 > 1.1). 입력은 `eval/nyu_raw_inputs.py`가 만든다(Track B는 로컬 예측 맵 — H200 값과 반올림까지 같다). 벤치 정답(SUN RGB-D `depth_bfx` ÷ 8,000)은 8.19 m 너머가 더 작은 값으로 채워져 있고 센서가 못 잰 곳도 채운 값이라 쓰지 않는다.
 | 실외 | DDAD | val | 0.05 | 120 | – | 1,000 | 10 | 10,000 | 42 |
 | 실외 | NuScenes | test (v1.0-test) | 0.05 | 80 | – | 1,000 | 10 | 10,000 | 42 |
 | 실외 | DIODE Outdoor | val outdoor | 0.05 | 80 | `depth_mask` | 446 | 22–23 | 10,000 | 42 |
@@ -276,7 +278,7 @@ DepthLM 파일에는 열이 두 개 더 있다. `note`는 점이 빠진 이유(`
 - **DepthVLM 추론** (`eval/dense_full.py`, 공식 `eval/eval.py` 경로): 사진을 canonical 크기(가로·세로 × 1000 / fx, 공식 큐레이션 식)로 bilinear 리사이즈 → 공식 프롬프트·채팅 틀 → `process_vision_info` → 프로세서 → forward 한 번의 `depth_pred`. bf16, text attention flash_attention_2 (없으면 sdpa). 출력은 z 이고 항상 > 0. 가중치 HF `JonnyYu828/DepthVLM-4B` @2b2d02f, 코드 `third_party/DepthVLM`, 환경 `envs/depthvlm.txt` (transformers 5.2.0 = 체크포인트에 적힌 버전).
   - GT intrinsics: 사용 (입력 크기를 GT fx 로 정한다). 도메인 정보: 미사용.
 - **평가 픽셀**: 데이터셋마다 Track A 와 같은 valid mask·cap 을 통과한 GT 픽셀 전부. 예측 맵은 GT 원본 해상도로 bilinear (규칙 2). 모든 모델이 같은 픽셀을 쓴다.
-- **집계와 지표**: Track A 와 같다 — 주 지표 pooled(데이터셋 안 valid 픽셀 전체), 보조 이미지별 평균, 이미지 bootstrap 95 % CI(B = 2,000, seed 0, 모델끼리 같은 재표본), 도메인 행 = 데이터셋 평균, 부록 = 유클리드 RMSE, 보조 집계 = 4.9 절(거리 구간, 경계/내부, log-RMSE, SILog).
+- **집계와 지표**: Track A 와 같다 — 주 지표 pooled(데이터셋 안 valid 픽셀 전체), 보조 이미지별 평균, 이미지 bootstrap 95 % CI(표는 B = 1,000, seed 0, 모델끼리 같은 재표본 — 4.6 절), 도메인 행 = 데이터셋 평균, 부록 = 유클리드 RMSE, 보조 집계 = 4.9 절(거리 구간, 경계/내부, log-RMSE, SILog).
   경계/내부는 픽셀마다 같은 정의로 나눈다(iBims-1 공식 경계 지도, NYUv2 이웃 GT 깊이 비 > 1.1, 3 px).
 - **원자료**: 픽셀 단위 대신 이미지별 통계 `stats_<모델>_<데이터셋>.parquet` — 집단(all / 거리 구간 / 경계·내부)마다 픽셀 수, 제곱오차 합, 상대오차 합, δ1 적중 수, log 오차 합·제곱합, cap 밖 예측 수, 유클리드 제곱오차 합. 표는 `eval/score_dense.py` 가 이것만 읽어 만든다.
   이유: dense 픽셀을 모두 저장하면 모델당 수억 행이다. 위 통계로 모든 지표를 다시 계산할 수 있다(사용자 결정).
@@ -284,3 +286,18 @@ DepthLM 파일에는 열이 두 개 더 있다. `note`는 점이 빠진 이유(`
   기준: DepthVLM NuScenes 0.838 / iBims-1 0.910, UniDepthV2 0.868 / 0.941, Metric3Dv2 0.843 / 0.724, Depth Pro 0.379 / 0.879 (논문 본문에는 없고 README 그림에만 있다. Depth Pro 는 GT 초점 사용으로 추정 — NOTES F-9).
   로컬 확인: DepthVLM iBims-1 100 장 = **0.910** (일치). NuScenes 는 로컬 GPU 메모리 부족으로 H200 에서 확인한다.
 - **실행**: `bash run.sh trackb [데이터셋...]` (스모크는 `LIMIT=n`, 결과는 `smoke_b`).
+
+## 10. VLM 약점 분석 (2026-10-07 추가, NOTES D-20·F-16)
+
+두 VLM(DepthLM-12B, DepthVLM-4B)의 공통 약점을 찾는 분석이다. 결과와 그림은 [VLM_WEAKNESS.md](VLM_WEAKNESS.md)에 있다. 주 결과 표(Track A·B)는 바꾸지 않는다.
+
+- **세트**: 두 VLM과 pure vision 4 종이 모두 학습하지 않은 iBims-1·NYUv2·DIODE Outdoor (2 절, 9 절). DDAD·nuScenes 는 VLM 학습 데이터라 뺀다.
+- **예측 맵**: 로컬 GPU 에서 Track B 와 같은 코드로 다시 추론해 저장한다(`eval/dense_full.py --save_maps`, GT 원본 크기, float16, `~/data/vdr_maps/<모델>/<세트>/`). 로컬은 attention 이 sdpa(H200 은 flash-attention 2)지만 전체 지표가 Track B 표와 반올림 자리까지 같고, 공통 점 값은 H200 Track A 와 ±0.3 % 안에서 같다.
+- **공정성 대조 (부록)**: UniDepthV2 에 GT intrinsics(공식 `infer(rgb, camera=K)`), Depth Pro 에 GT 초점 fx(공식 `infer(x, f_px)`)를 준 두 조건을 더 돌린다(`UniDepthV2-L+K`, `DepthPro+f`). 주 비교에는 넣지 않는다.
+- **두 단위**: 공통 점(Track A 점, DepthLM 공식 정의 답 + dense 모델은 같은 픽셀) 6 모델 / 전체 valid 픽셀 5 모델.
+- **경우**: 거리 구간(4.9 절과 같음), 경계 3 px(4.9 절과 같음, DIODE 제외), 물체 대분류(NYUv2 = GT 라벨 894 종, iBims-1·DIODE = `facebook/mask2former-swin-large-ade-semantic` 분할 150 종을 같은 대분류로 묶음, `prep/semseg_ade.py`·`eval/weak_common.py` CATS), 물체 크기(인스턴스 면적 < 1 % / 1–5 % / ≥ 5 %; NYUv2 = GT 인스턴스, 나머지 = 같은 라벨 연결 성분), 질감(이미지 안 3 등분), 화면 위치(가장자리 10 % 띠, 세로 3 등분), iBims-1 공식 평면, NYUv2 Kinect 실측/채움(rawDepths, 이미지마다 1 px 단위로 정렬).
+- **지표**: AbsRel·δ1·RMSE(4.4 절), 모양 = 이미지 배율(평균 log 오차)을 뺀 log 오차 rms(%), 치우침 = 배율 뺀 평균 log 오차, 압축 기울기 a(이미지마다 ln 예측 = a·ln GT + b), 점 쌍 앞뒤 오답률(GT 깊이 비 > 1.1)·상대 깊이 오차.
+- **구조 지표 (iBims-1)**: Koch et al. 2018 식 1–4 재구현 — DBE(예측 깊이 0–1 정규화, Canny σ = √2·문턱 0.1/0.2, θ = 10 px; 변형 0.15/0.3·log 정규화, GT 자기 점검 행), 평면성(이미지 배율을 GT 중앙값 비로 맞춘 뒤 SVD 평면 맞춤, ε_plan = 거리 표준편차, ε_orie = GT 점으로 맞춘 평면과의 법선 각). 공식 평가 코드의 매개변수와 다를 수 있어 모델끼리 상대 비교로만 쓴다.
+- **NYUv2 원측정 GT 보조 채점 (NOTES F-17)**: 벤치 GT(SUN RGB-D `depth_bfx` ÷ 8,000)는 16 비트 한계(65,535 ÷ 8,000 = 8.19 m)로 그 이상을 적지 못하고 더 작은 값이 채워져 있다(단순 넘침으로 맞는 픽셀 4 %)(654 장 최댓값 7.995 m, 원측정 8–10 m 픽셀의 벤치 GT 중앙값 4.86 m). 같은 예측을 `nyu_depth_v2_labeled.mat` rawDepths(Kinect 실측 픽셀만, 0.005–10 m, SUN RGB-D 자르기 위치는 이미지마다 원측정에 맞춤)로 다시 채점한다(`eval/weak_nyu_raw.py`). 2026-10-08 부터 주 결과 표(Track A·B)의 NYUv2 행도 이 원측정 정답이다(6 절, D-22). (처음 재채점은 정확히 10.0 m인 포화값을 넣었다 — F-18 에서 고침.)
+- **판정**: VLM ÷ pure vision 4 종 중앙값. 1 보다 크면 그 경우에서 pure vision 보다 나쁘다. 주장마다 이미지 단위 bootstrap 95 % CI(B = 1,000, seed 0).
+- **코드**: `eval/weak_common.py`(로더·속성), `weak_stats.py`(통계), `weak_tables.py`(표·히트맵), `weak_figs.py`(카드·갤러리), `weak_grid.py`(토큰 격자 스펙트럼), `weak_relief.py`(벽에 붙은 물체), `weak_nyu_measured.py`(NYUv2 실측만), `weak_ci.py`(CI), `weak_examples.py`(예시 그림). 출력은 `results_vlm_weakness/`(git 제외), 대표 그림 사본은 `docs/figs/vlm_weakness/`.

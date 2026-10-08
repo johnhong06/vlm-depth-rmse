@@ -18,7 +18,7 @@ from PIL import Image
 
 from breakdown import BIN_NAMES, BINS, BOUNDARY_SETS, CAP
 from common import BENCH, ROOT, load_bench, ray
-from dense_sparse import MODELS, gt_map, overlay
+from dense_sparse import EXT, MODELS, gt_map, overlay
 
 sys.path.insert(0, os.path.join(ROOT, "prep"))
 from boundary_labels import R, contour_map  # noqa: E402
@@ -67,7 +67,36 @@ def depthvlm(domain):
     return f
 
 
-ALL = dict(MODELS, **{"DepthVLM-4B": depthvlm})
+def unidepth_k(domain):
+    """공정성 대조(부록, NOTES F-16): UniDepthV2 에 GT intrinsics 를 준다 — 공식 infer(rgb, camera=3×3 K). 그 밖은 dense_sparse.unidepth 와 같다."""
+    sys.path.insert(0, os.path.join(EXT, "UniDepth"))
+    from unidepth.models import UniDepthV2
+    m = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14", revision="52b349b514bd8b47642f67ac78cb7b5dc5c51dd9")
+    m.interpolation_mode = "bilinear"
+    m = m.to("cuda").eval()
+
+    def f(path, k):
+        K = torch.tensor([[k[0], 0, k[2]], [0, k[1], k[3]], [0, 0, 1]], dtype=torch.float32)
+        rgb = torch.from_numpy(np.array(Image.open(path).convert("RGB"))).permute(2, 0, 1)
+        return m.infer(rgb, K)["depth"][0, 0].float().cpu().numpy()
+    return f
+
+
+def depthpro_f(domain):
+    """공정성 대조(부록, NOTES F-16): Depth Pro 에 GT 초점 fx 를 준다 — 공식 infer(x, f_px=fx) (초점 하나만 받으므로 fx, Metric3Dv2 hub 와 같은 값. 공식 CLI 의 EXIF 값처럼 numpy 실수로 넘긴다). 그 밖은 dense_sparse.depthpro 와 같다."""
+    sys.path.insert(0, os.path.join(EXT, "ml-depth-pro/src"))
+    import dataclasses
+    import depth_pro
+    from depth_pro.depth_pro import DEFAULT_MONODEPTH_CONFIG_DICT
+    from huggingface_hub import hf_hub_download
+    ck = hf_hub_download("apple/DepthPro", "depth_pro.pt", revision="ccd1350a774eb2248bcdfb3be430e38f1d3087ef")
+    m, tf = depth_pro.create_model_and_transforms(config=dataclasses.replace(DEFAULT_MONODEPTH_CONFIG_DICT, checkpoint_uri=ck),
+                                                  device=torch.device("cuda"), precision=torch.half)
+    m.eval()
+    return lambda path, k: m.infer(tf(depth_pro.load_rgb(path)[0]), f_px=np.float64(k[0]))["depth"].float().cpu().numpy()
+
+
+ALL = dict(MODELS, **{"DepthVLM-4B": depthvlm, "UniDepthV2-L+K": unidepth_k, "DepthPro+f": depthpro_f})
 
 
 def sums(p, g, r_, ds):
@@ -87,6 +116,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--overlays", type=int, default=5)
     ap.add_argument("--limit", type=int, default=0, help="데이터셋당 이미지 수 제한 (스모크)")
+    ap.add_argument("--save_maps", default="", help="평가에 쓴 예측 맵(GT 원본 크기, float16 .npy)을 <경로>/<모델>/<데이터셋>/ 에 저장 — 오차 분석용 (NOTES F-16)")
     a = ap.parse_args()
     os.makedirs(os.path.join(a.out, "overlay"), exist_ok=True)
     predict = None
@@ -104,6 +134,10 @@ def main():
                 gt = gt_map(r, a.data_root, ds)
                 if pred.shape != gt.shape:
                     pred, resized = cv2.resize(pred, gt.shape[::-1], interpolation=cv2.INTER_LINEAR), resized + 1
+                if a.save_maps:
+                    dst = os.path.join(a.save_maps, a.model, ds, r["image"].rsplit(".", 1)[0].replace("/", "__") + ".npy")
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    np.save(dst, pred.astype(np.float16))
                 valid, fin = gt > 0, np.isfinite(pred)
                 ys, xs = np.nonzero(valid & fin)
                 g, p, r_ = gt[ys, xs], pred[ys, xs], ray(xs, ys, k)
