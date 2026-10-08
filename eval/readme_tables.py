@@ -26,13 +26,15 @@ def mark(m, ds):
 
 
 def styled(vals, p, high):
-    """한 열의 값 → 굵게(1 위)·밑줄(2 위) 표시 문자열. None 은 '대기'."""
+    """한 열의 값 → 굵게(1 위)·밑줄(2 위)·빨간색(꼴찌) 표시 문자열. None 은 '대기'.
+    빨간색은 GitHub 수식 색상($\\color{red}{…}$) — GitHub README 는 글자색 HTML 을 지운다. 서로 다른 값이 3 개 이상일 때만(꼴찌가 2 위와 겹치지 않게)."""
     r = [None if v is None else round(v, p) for v in vals]
     u = sorted({x for x in r if x is not None}, reverse=high)
     out = []
     for x in r:
         s = "대기" if x is None else f"{x:.{p}f}"
-        out.append(f"**{s}**" if u and x == u[0] else f"<u>{s}</u>" if len(u) > 1 and x == u[1] else s)
+        out.append(f"**{s}**" if u and x == u[0] else f"<u>{s}</u>" if len(u) > 1 and x == u[1]
+                   else f"$\\color{{red}}{{{s}}}$" if len(u) > 2 and x == u[-1] else s)
     return out
 
 
