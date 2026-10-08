@@ -48,6 +48,8 @@
 - [x] NYUv2 벤치 GT 8.19 m 상한 결함 확인 · Kinect 원측정 GT 로 재채점 (F-17)
 - [x] (사용자 결정 10-08) NYUv2 GT = Kinect 원측정 픽셀만 (D-22)
 - [x] Track A·B 주 결과 표·README 의 NYUv2 행을 원측정 GT(< 10 m)로 다시 냄 (D-22, `eval/nyu_raw_inputs.py`, `breakdown.py --nyu_boundary`) — 실행 로그 10-08 F-19 다음
+- [x] Depth Pro 제외(D-23)·DDAD·NuScenes 표에서 제외, 실외 = DIODE(D-24) → tables/·README 재생성, 독립 검수 통과 (2026-10-08)
+- [ ] (보류 — 사용자: '약점 분석 말고 표 먼저') `docs/VLM_WEAKNESS.md` 수치를 pure vision 3 종 기준으로 고치기. 결과 csv·그림(`results_vlm_weakness/`)은 이미 3 종으로 다시 만듦, 문서 숫자는 아직 4 종(Depth Pro 포함) 기준
 
 ### zero-shot 재정리·NYUv2 평가 재점검 (2026-10-08, D-21 · F-18 · F-19)
 - [x] zero-shot 조합 확정 (논문 학습 목록 재확인) → D-21, 프로젝트 CLAUDE.md 규칙 11
@@ -234,6 +236,17 @@ DepthLM 은 RGB 만 쓰므로(GT·intrinsics 는 저장소) `run.sh depthlm ibim
 - 그동안 본 이상한 점(README 에 한 문단): 예측을 자르지 않아 0.08 % 픽셀이 10⁴ m → 실외 RMSE 지배(DIODE 88.8, 80 m 로 자르면 9.25), DepthVLM 표 2 의 수치는 GT 초점을 넣은 값(F-9),
   공개 가중치는 재학습한 참조 구현이고 학습 데이터 미공개(D-12).
 - 그대로 둔 것: track_a_checks.md(논문 재현 확인 기록), docs/VLM_WEAKNESS.md(pure vision 4 종 중앙값 기준 — 빼려면 비·CI 를 다시 계산해야 함, 사용자 확인 대기).
+- **확장 (같은 날, 사용자: "뎁스프로는 걍 우리 실험에서 제외")**: 약점 분석도 pure vision 3 종(UniDepthV2·Metric3Dv2·DAv2)으로 — `weak_common.PV`·`SUPP`(UniDepthV2+K 만), 목록을 박아 둔 weak_ci·weak_tables(_nyuraw)·weak_examples 를 공용 목록으로, E4 확대 그림의 Depth Pro 칸은 Metric3Dv2 로. 앞으로의 실행에서도 뺌: run.sh 의 env·smoke·all·dense all·trackb 기본 목록, prep/weak_maps.sh. depthpro 어댑터·환경은 지난 결과 재현용으로 남김(`run.sh dense depthpro` 로만).
+
+### D-24 (2026-10-08) 결과 표는 zero-shot 세트만 — DDAD·NuScenes 를 빼고 실외는 DIODE 하나 (사용자: "DDAD nuscene 도 표에서 제외, 실외는 DIODE 만 해서 다시 순위 집계")
+- 이유: DDAD = Metric3Dv2·DepthVLM 학습, NuScenes = DepthLM·DepthVLM 학습 (D-12·D-19·D-21). 원자료와 실행 코드는 그대로.
+- tables/ 재생성(NYUv2 원측정 입력, Depth Pro 제외 상태 그대로). 실외 평균 = DIODE 값. `readme_tables.py` 는 csv 에 있는 데이터셋만 쓰고, 도메인에 데이터셋이 하나면
+  상세 표의 평균 열을 빼고 머리에 '실외(DIODE Outdoor)' 로 적는다 — 5 세트 csv 로는 예전 출력과 바이트 단위로 같음(회귀 확인).
+- 남은 세트의 점추정은 그대로. 바뀐 것: 실외 평균·평균 순위, 그리고 Track A DIODE 의 CI (score.py 는 데이터셋 순서대로 한 난수열에서 재표본을 뽑아
+  앞의 DDAD·NuScenes 가 빠지면 DIODE 재표본이 달라진다; Track B·breakdown 은 데이터셋마다 seed 0 이라 그대로).
+- 검수(생성 코드와 따로 짠 코드, scratchpad audit_tables.py): 원자료 → csv (Track A 공통 점 직접 계산, Track B 통계 합) 일치, 도메인 평균 = 데이터셋 평균·실외 = DIODE,
+  README 모든 숫자 = csv 반올림, 굵게·밑줄 = 표시 자릿수 기준 1·2 위, 평균 순위 재계산 일치, 보조 지표 표 일치 — 전부 통과.
+- README: 공통 설계 문장, 두 트랙 '학습 데이터 겹침' 표(남은 3 세트 + 뺀 이유 한 줄), † 각주 삭제, ‡ 각주는 iBims-1 만. 진행 상황 체크리스트(파일럿 NuScenes 등)는 기록이라 그대로.
 
 ## 확인이 필요한 발견
 

@@ -16,7 +16,7 @@ B = 1000
 PTS = pd.read_parquet(W.OUT + "/data/points.parquet")
 if NYURAW:   # cap 은 nyuv2 것 그대로, 표의 dataset 이름만 nyuv2_raw
     PTS = pd.read_parquet(W.OUT + "/data/points_nyuraw.parquet").assign(dataset="nyuv2")
-M = ["DepthLM", "DepthVLM", "UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]
+M = ["DepthLM", "DepthVLM"] + [W.SHORT[m] for m in W.PV]
 PV = M[2:]
 
 

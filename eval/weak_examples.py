@@ -27,7 +27,8 @@ from matplotlib.ticker import FuncFormatter  # noqa: E402
 PLAIN = FuncFormatter(lambda v, _: f"{v:g}")   # log 축 눈금을 0.01·0.1·1 처럼 (수식 글꼴의 마이너스 기호 깨짐 방지)
 EX = os.path.join(W.OUT, "examples")
 COL = {"DepthLM": "#9467bd", "DepthVLM": "#d62728", "UniDepthV2": "#1f77b4", "Metric3Dv2": "#ff7f0e", "DepthPro": "#2ca02c", "DAv2": "#8c564b", "GT": "k"}
-M6 = ["DepthLM", "DepthVLM", "UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]
+PVS = [W.SHORT[m] for m in W.PV]
+M6 = ["DepthLM", "DepthVLM"] + PVS
 PTS = pd.read_parquet(os.path.join(W.OUT, "data", "points.parquet"))
 LM = W.depthlm_points()
 REC = {ds: {r["image"]: r for r in W.records(ds)} for ds in W.SETS}
@@ -106,7 +107,7 @@ def e1():
     tiles.append(label(t_lm, [f"DepthLM: 벽 위 {int(inp.sum())}점 배율 뺀 오차"], 13))
     fig, ax = plt.subplots(1, 3, figsize=(21, 4.6))
     cols = np.nonzero(plane[row])[0]
-    for m in ["DepthVLM", "UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]:
+    for m in ["DepthVLM"] + PVS:
         e = shape_err(P[m], g, valid, ds)
         ax[0].plot(cols, 100 * np.expm1(e[row, cols]), color=COL[m], lw=2.2 if m == "DepthVLM" else 1, label=m)
     ax[0].scatter(u[inp], 100 * np.expm1(d[inp] - d.mean()), color=COL["DepthLM"], s=30, zorder=5, label="DepthLM (벽 위 모든 점)")
@@ -165,7 +166,7 @@ def e2():
     # 예시: iBims-1 에서 두 VLM 기울기가 pure vision 보다 가장 많이 낮은 이미지
     x = PTS[PTS.dataset == "ibims1"]
     sl = x.groupby("image_id").apply(lambda q: pd.Series({m: np.polyfit(np.log(q.gt_z), np.log(q["p_" + m]), 1)[0] for m in M6}), include_groups=False)
-    sl["gap"] = sl[["UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]].median(axis=1) - sl[["DepthLM", "DepthVLM"]].max(axis=1)
+    sl["gap"] = sl[PVS].median(axis=1) - sl[["DepthLM", "DepthVLM"]].max(axis=1)
     image = sl.gap.idxmax()
     r, g, P, valid, rgb = load("ibims1", image)
     H, Wd = g.shape
@@ -173,7 +174,7 @@ def e2():
     lo, hi = np.log(np.percentile(g[valid], [1, 99]))
     u, v, pp, gg, d = lm_pts(image, "ibims1")
     base = (cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)[..., None].repeat(3, 2) // 3).astype(np.uint8)
-    best = min(["UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"], key=lambda m: abs(1 - sl.loc[image, m]))
+    best = min(PVS, key=lambda m: abs(1 - sl.loc[image, m]))
     tiles = [label(tile(rgb, th), [os.path.basename(image), f"기울기 a: DepthLM {sl.loc[image, 'DepthLM']:.2f} · DepthVLM {sl.loc[image, 'DepthVLM']:.2f}",
                                    f"{best} {sl.loc[image, best]:.2f}"], 13),
              label(tile(depth_rgb(g, lo, hi, valid), th), ["GT"], 14),
@@ -258,7 +259,7 @@ def e4():
     crop = lambda im: cv2.resize(im[y0:y0 + 150, x0:x0 + 200], (400, 300), interpolation=cv2.INTER_NEAREST)
     lo, hi = np.log(np.percentile(g[valid], [1, 99]))
     tiles = [label(crop(rgb), [os.path.basename(image) + " (확대)"], 13), label(crop(depth_rgb(g, lo, hi, valid)), ["GT"], 14)]
-    for m in ["DepthVLM", "DepthPro", "UniDepthV2"]:
+    for m in ["DepthVLM", "Metric3Dv2", "UniDepthV2"]:
         tiles.append(label(crop(depth_rgb(P[m], lo, hi)), [m], 14))
     e = pd.read_parquet(os.path.join(W.OUT, "data", "edge_profile.parquet"))
     cols = [c for c in e.columns if c.startswith("t")]
@@ -378,7 +379,7 @@ def e7():
     fig.suptitle("E7 · 학습 밖 실외(DIODE): 깊은 장면일수록 두 VLM 의 배율이 무너진다", fontsize=12)
     fig.tight_layout()
     deep = t[(t.q == "깊음")]
-    image = (deep[["UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]].median(axis=1) / deep[["DepthLM", "DepthVLM"]].max(axis=1)).idxmax()
+    image = (deep[PVS].median(axis=1) / deep[["DepthLM", "DepthVLM"]].max(axis=1)).idxmax()
     r, g, P, valid, rgb = load("diode_outdoor", image)
     H, Wd = g.shape
     th = int(round(H * 300 / Wd))
@@ -397,7 +398,7 @@ def e7():
 def e8():
     t = pd.read_csv(os.path.join(W.OUT, "nyu_measured_only.csv"))
     t["fq"] = t.groupby("model").fill.transform(lambda x: pd.qcut(x, 3, labels=["채움 적음", "중간", "채움 많음"]))
-    ms = ["DepthVLM", "UniDepthV2", "Metric3Dv2", "DepthPro", "DAv2"]
+    ms = ["DepthVLM"] + PVS
     fig, ax = plt.subplots(1, 2, figsize=(17, 4.6))
     m = t.groupby("model")[["shape_all", "shape_meas"]].mean()
     xs = np.arange(len(ms))
@@ -409,7 +410,7 @@ def e8():
     f = t.pivot_table(index="model", columns="fq", values="shape_meas", aggfunc="mean", observed=True)
     xs = np.arange(3)
     for k, q in enumerate(ms):
-        ax[1].bar(xs + (k - 2) * 0.16, f.loc[q, ["채움 적음", "중간", "채움 많음"]], 0.16, color=COL[q], label=q)
+        ax[1].bar(xs + (k - (len(ms) - 1) / 2) * 0.16, f.loc[q, ["채움 적음", "중간", "채움 많음"]], 0.16, color=COL[q], label=q)
     ax[1].set_xticks(xs, ["채움 적음 1/3", "중간 1/3", "채움 많음 1/3"])
     ax[1].set(ylabel="실측 픽셀 배율 뺀 오차 (%)", title="채운 비율 3 등분: 깨끗한 장면에서는 DepthVLM 이 뒤처진다")
     ax[1].legend(fontsize=8)

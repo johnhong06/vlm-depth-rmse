@@ -52,6 +52,9 @@ def main():
     a = ap.parse_args()
     t = pd.read_csv(a.main)
     t = t[t.group == "all"] if "group" in t else t
+    for d in DS:   # 표에 있는 데이터셋만 (NOTES D-24: 결과 표는 zero-shot 세트만 — 실외는 DIODE 하나)
+        DS[d] = [x for x in DS[d] if x in set(t.dataset)]
+    dn = lambda d: DOM[d] if len(DS[d]) > 1 else f"{DOM[d]}({DSN[DS[d][0]]})"
     val = lambda m, ds, k: (lambda x: None if x.empty or not np.isfinite(x.iloc[0]) else float(x.iloc[0]))(t[(t.model == m) & (t.dataset == ds)][k])
     mean = lambda m, dom, k, f=val: (lambda v: None if None in v else float(np.mean(v)))([f(m, ds, k) for ds in DS[dom]])
 
@@ -71,7 +74,7 @@ def main():
     for dom in DS:
         rk = rank(dom)
         cols += [([mean(m, dom, k) for m in a.models], p, h, None) for k, _, p, h in MET] + [([rk[m] for m in a.models], 1, False, None)]
-    head = ["모델"] + [f"{DOM[d]} {x}" for d in DS for x in ["RMSE↓", "AbsRel↓", "δ1↑", "평균 순위↓"]]
+    head = ["모델"] + [f"{dn(d)} {x}" for d in DS for x in ["RMSE↓", "AbsRel↓", "δ1↑", "평균 순위↓"]]
     print("#### 한눈에 보기 (도메인 평균)\n\n" + table(head, a.models, cols) + "\n\n#### 지표별 상세\n")
     for k, title, p, h in MET:
         cols, head = [], [title]
@@ -79,8 +82,9 @@ def main():
             for ds in DS[dom]:
                 cols.append(([val(m, ds, k) for m in a.models], p, h, [mark(m, ds) for m in a.models]))
                 head.append(DSN[ds])
-            cols.append(([mean(m, dom, k) for m in a.models], p, h, None))
-            head.append(f"**{DOM[dom]} 평균**")
+            if len(DS[dom]) > 1:   # 데이터셋이 하나면 평균 열 = 그 열이라 뺀다
+                cols.append(([mean(m, dom, k) for m in a.models], p, h, None))
+                head.append(f"**{DOM[dom]} 평균**")
         print(table(head, a.models, cols) + "\n")
 
     x = pd.read_csv(a.aux)
@@ -91,7 +95,8 @@ def main():
         + [([mean(m, d, "silog", g("all")) for m in a.models], 1, False, None) for d in DS] \
         + [([mean(m, d, "rmse", g("dist:far")) for m in a.models], 2, False, None) for d in DS] \
         + [([bnd(m, "Indoor", "d1") for m in a.models], 3, True, None), (drop, 3, False, None)]
-    head = ["모델", "log-RMSE↓ 실내", "log-RMSE↓ 실외", "SILog↓ 실내", "SILog↓ 실외", "원거리 RMSE↓ 실내 (≥4 m)", "원거리 RMSE↓ 실외 (≥30 m)",
+    head = ["모델", f"log-RMSE↓ {dn('Indoor')}", f"log-RMSE↓ {dn('Outdoor')}", f"SILog↓ {dn('Indoor')}", f"SILog↓ {dn('Outdoor')}",
+            f"원거리 RMSE↓ {dn('Indoor')} (≥4 m)", f"원거리 RMSE↓ {dn('Outdoor')} (≥30 m)",
             "경계 δ1↑ (실내)", "경계에서 δ1 하락↓"]
     print("#### 보조 지표 (도메인 평균)\n\n" + table(head, a.models, cols))
 

@@ -28,9 +28,9 @@ RAW = os.path.expanduser("~/data/vdr_raw")              # 874·875·878 원자�
 OUT = os.path.join(ROOT, "results_vlm_weakness")        # results*/ 라 git 에서 빠짐
 NYU_MAT = os.path.expanduser("~/data/nyuv2/nyu_depth_v2_labeled.mat")
 SETS = ["ibims1", "nyuv2", "diode_outdoor"]             # 두 VLM·pure vision 4 종 모두 zero-shot (PROTOCOL 2 절, D-19)
-PV = ["UniDepthV2-L", "Metric3Dv2-L", "DepthPro", "DAv2-metric-L"]
+PV = ["UniDepthV2-L", "Metric3Dv2-L", "DAv2-metric-L"]       # Depth Pro 는 실험에서 제외 (NOTES D-23)
 DENSE = ["DepthVLM-4B"] + PV
-SUPP = ["UniDepthV2-L+K", "DepthPro+f"]                 # 공정성 대조: GT intrinsics 를 준 pure vision (부록)
+SUPP = ["UniDepthV2-L+K"]                               # 참고용 부록 조건: GT intrinsics 를 준 UniDepthV2 (D-22)
 ALLM = ["DepthLM-12B"] + DENSE
 SHORT = {"DepthLM-12B": "DepthLM", "DepthVLM-4B": "DepthVLM", "UniDepthV2-L": "UniDepthV2", "Metric3Dv2-L": "Metric3Dv2",
          "DepthPro": "DepthPro", "DAv2-metric-L": "DAv2", "UniDepthV2-L+K": "UniDepthV2+K", "DepthPro+f": "DepthPro+f"}

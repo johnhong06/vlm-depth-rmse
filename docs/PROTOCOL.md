@@ -216,6 +216,7 @@ z 공간 RMSE가 주 결과다. 유클리드 공간 RMSE는 GT와 예측에 같�
 - DepthLM 공식 학습 데이터 정리 코드에서 NuScenes·DDAD 라벨은 z-depth이고 나머지 데이터셋은 유클리드 거리다(NOTES D-6). iBims-1 공식 예제 라벨도 z다(4.1절 정정). 이 두 세트에서 DepthLM 원답이 어느 정의인지는 첫째와 다섯째 항목으로 파일럿에서 확인한다.
 
 > 2026-10-08: Depth Pro 는 아래 설정대로 돌렸지만 결과 표(`tables/`, README)에서는 뺐다 (NOTES D-23). 원자료에는 남아 있다.
+> 2026-10-08: DDAD·NuScenes 도 결과 표에서 뺐다 — 비교 모델 일부의 학습 데이터 (NOTES D-24). 결과 표 = iBims-1·NYUv2·DIODE Outdoor, 실외 평균 = DIODE.
 
 ## 6. 데이터셋별 설정값
 

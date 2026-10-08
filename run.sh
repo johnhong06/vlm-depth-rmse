@@ -3,7 +3,7 @@
 #   bash run.sh env                           # 데이터 팩 없이: 모델 5종 환경·공식 저장소·가중치·로딩 + KITTI 데모 이미지 한 장 (공식 Metric3D 저장소에 포함)
 #   bash run.sh smoke [데이터셋...]          # 데이터까지: DepthLM 48 점 + dense 모델마다 3 장 (데이터셋 기본: ibims1 nuscenes)
 #   bash run.sh depthlm [데이터셋...]        # DepthLM-12B 를 공통 점 전부에 질의
-#   bash run.sh dense <모델|all> [데이터셋...]  # 모델 = dav2 | unidepth | metric3d | depthpro
+#   bash run.sh dense <모델|all> [데이터셋...]  # 모델 = dav2 | unidepth | metric3d (depthpro 는 지난 실행 재현용으로만, all 에서 빠짐 — NOTES D-23)
 #   bash run.sh all [데이터셋...]            # depthlm + dense all 을 한 작업으로
 #   bash run.sh m3d_nyu                       # 검증: Metric3Dv2 ViT-L NYUv2 RMS 0.251 재현 (공식 654 장, 팩 vdr_nyu_official)
 #   bash run.sh trackb [데이터셋...] [LIMIT=n] # Track B: DepthVLM-4B + dense 모델 4종을 valid GT 전체 픽셀로 (LIMIT>0 이면 데이터셋당 n 장 스모크, 결과는 smoke_b)
@@ -143,14 +143,14 @@ run_full() {  # Track B: $1 = 모델 키 — valid GT 전체 픽셀의 이미지
 
 case $MODE in
   env)
-    for m in dav2 unidepth metric3d depthpro; do PY=$(mkenv $m) && (cd eval && $PY env_check.py --model "${MNAME[$m]}" 2>&1 | grep -E "^\[|Traceback|Error"); done
+    for m in dav2 unidepth metric3d; do PY=$(mkenv $m) && (cd eval && $PY env_check.py --model "${MNAME[$m]}" 2>&1 | grep -E "^\[|Traceback|Error"); done
     PY=$(mkenv depthlm) && M=$(depthlm_weights) && (cd eval && $PY env_check.py --model DepthLM-12B --weights "$M" 2>&1 | grep -E "^\[|^  \(|Traceback|Error");;
-  smoke) run_depthlm 48; for m in dav2 unidepth metric3d depthpro; do run_dense $m 3; done;;
+  smoke) run_depthlm 48; for m in dav2 unidepth metric3d; do run_dense $m 3; done;;
   depthlm) run_depthlm 0;;
-  all) run_depthlm 0; for m in dav2 unidepth metric3d depthpro; do run_dense $m 0; done;;
-  dense) for m in $([ "$DM" = all ] && echo dav2 unidepth metric3d depthpro || echo "$DM"); do run_dense "$m" 0; done;;
+  all) run_depthlm 0; for m in dav2 unidepth metric3d; do run_dense $m 0; done;;
+  dense) for m in $([ "$DM" = all ] && echo dav2 unidepth metric3d || echo "$DM"); do run_dense "$m" 0; done;;
   trackb) [[ " $DATASETS " == *" ibims1 "* ]] && python3 prep/ibims1_edges.py "$WORK/bench"
-    for m in depthvlm dav2 unidepth metric3d depthpro; do run_full $m; done;;
+    for m in depthvlm dav2 unidepth metric3d; do run_full $m; done;;
   m3d_nyu) PY=$(mkenv metric3d) && (cd eval && $PY m3d_nyu.py "$WORK/bench/nyu_official" 2>&1 | tee "$A/log_m3d_nyu.txt" | grep -E "^\[|Traceback|Error");;
 esac
 
@@ -160,7 +160,7 @@ MODELS=$($PY -c "import glob, pandas as pd; print(' '.join(sorted({m for f in gl
 FILES=$(ls "$A"/depthlm_*.parquet "$A"/dense_*.parquet 2>/dev/null)
 if [ "$MODE" = trackb ]; then   # Track B 표: 이미지별 통계만으로 (score_dense.py)
   PY=$WORK/envs/depthvlm/bin/python
-  (cd eval && $PY score_dense.py "$B"/stats_*.parquet --models DepthVLM-4B DAv2-metric-L UniDepthV2-L Metric3Dv2-L DepthPro --out "$OUT/tables/${MODE}_track_b" --B 1000)
+  (cd eval && $PY score_dense.py "$B"/stats_*.parquet --models DepthVLM-4B DAv2-metric-L UniDepthV2-L Metric3Dv2-L --out "$OUT/tables/${MODE}_track_b" --B 1000)
   A=$B
 elif [ -n "$MODELS" ]; then
   (cd eval && $PY score.py $FILES --models $MODELS --out "$OUT/tables/${MODE}_track_a" --B 1000 && $PY checks.py $FILES $(ls "$A"/densestat_*.parquet 2>/dev/null) | tee "$OUT/tables/${MODE}_checks.md")

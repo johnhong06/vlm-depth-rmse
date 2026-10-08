@@ -229,7 +229,7 @@ def main():
     ptab.to_csv(os.path.join(W.OUT, "points_groups.csv"), index=False)
     dtab.to_csv(os.path.join(W.OUT, "dense_groups.csv"), index=False)
     pr = ratio_view(ptab, VL, min_n=150)
-    dr = ratio_view(dtab, ["DepthVLM", "UniDepthV2+K", "DepthPro+f"], min_n=20000)
+    dr = ratio_view(dtab, ["DepthVLM"] + [W.SHORT[m] for m in W.SUPP], min_n=20000)
     pr.to_csv(os.path.join(W.OUT, "points_ratio.csv"), index=False)
     dr.to_csv(os.path.join(W.OUT, "dense_ratio.csv"), index=False)
     S = os.path.join(W.OUT, "00_summary")
